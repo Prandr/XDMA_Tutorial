@@ -1,8 +1,6 @@
-# XDMA Communication
+# XDMA Tutorial
 
-Tutorial for an [XDMA](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction)-based peripheral FPGA design using [dma_ip_drivers](https://github.com/xilinx/dma_ip_drivers).
-
-
+Tutorial for an [XDMA](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction)-based peripheral FPGA design using [reworked XDMA driver](https://github.com/Prandr/dma_ip_drivers) that was adapted and extended from the [Tutorial for the original driver by mwrnd](https://github.com/mwrnd/notes/tree/main/XDMA_Communication).
 
 
 # Table of Contents
