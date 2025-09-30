@@ -11,7 +11,7 @@ The tutorial can't replace PG195 linked above. It is rather meant to extend it o
    * [Software Access to Memory-Mapped Blocks](#software-access-to-memory-mapped-blocks)
       * [M_AXI](#m_axi)
       * [M_AXI_LITE](#m_axi_lite)
-   * [DMA Transfers with `ioctl`](dma-transfers-with-ioctl)
+   * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Recreating a Project from a Tcl File](#recreating-a-project-from-a-tcl-file)
@@ -26,12 +26,13 @@ The tutorial can't replace PG195 linked above. It is rather meant to extend it o
 
 PCI Express is a [Layered Protocol](https://en.wikipedia.org/wiki/Protocol_stack). With the [XDMA Driver (*dma_ip_drivers*)](https://github.com/xilinx/dma_ip_drivers) running on the host PC and an [XDMA IP Block](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction) in your FPGA project, you operate at the Application layer. You read from and write to what appears as a file but it accesses the AXI Bus in your FPGA project. The XDMA Driver and XDMA IP Block handle the lower layers.
 
-The XDMA driver creates [character device files](https://en.wikipedia.org/wiki/Device_file#Character_devices) for easy access to all enabled interfaces.  By default, the write-only device for DMA transfers to DMA interface is named `/dev/xdma0_h2c_0`,  while the read-only `/dev/xdma0_c2h_0` serves the transfers in the opposite direction. This is the case for both AXI-Stream (**M_AXIS_H2C**/**S_AXIS_C2H**) and full memory mapped AXI (**M_AXI**) variants. The driver enforces appropriate access restrictions. Moreover, the driver permits only one thread to operate on a DMA device at a time. Use separate DMA channels, if you require simultaneous access.
+The XDMA driver creates [character device files](https://en.wikipedia.org/wiki/Device_file#Character_devices) for easy access to all enabled interfaces.  By default, the write-only device for DMA transfers to DMA interface is named `/dev/xdma0_h2c_0`,  while the read-only `/dev/xdma0_c2h_0` serves the DMA transfers in the opposite direction. This is the case for both AXI-Stream (**M_AXIS_H2C**/**S_AXIS_C2H**) and full memory mapped AXI (**M_AXI**) varieties. The driver enforces appropriate access restrictions. Moreover, the driver permits only one thread at a time to perform transfers on a DMA device. Use separate DMA channels, if you require simultaneous access.
 
 For single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interface, `/dev/xdma0_user` is Read-Write. **M_AXI_BYPASS** interface `/dev/xdma0_bypass` could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md).
 
 The driver allows to adjust the names of character devices with compile options for better overview and to reflect application. It is highly recommended to run `make help` to learn about these and many other configuration options for the driver.
 
+All interfaces are accessed by writing to or reading from them. See following sections for specifics for each device. Note that the Linux Kernel limits file operations to ~2 GB. The driver provides a way to circumvent this limitation for DMA devices by enabling to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
 
 ## Software Access to AXI Stream Blocks
 
@@ -113,7 +114,7 @@ See [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapp
 
 To read from an AXI interface at address `0x12345000` you would read from address `0x12345000` of the `/dev/xdma0_c2h_0` (Card-to-Host) file. To write you would write to the appropriate address of the `/dev/xdma0_h2c_0` (Host-to-Card) file. 
 
-[`pread`/`pwrite`](https://manpages.ubuntu.com/manpages/jammy/en/man2/pread.2.html) combine [`lseek`](https://manpages.ubuntu.com/manpages/jammy/en/man2/lseek.2.html) and [`read`/`write`](https://manpages.ubuntu.com/manpages/jammy/en/man2/read.2.html). Note the Linux Kernel has a [write limit](https://manpages.ubuntu.com/manpages/focal/en/man2/write.2.html) of `0x7FFFF000=2147479552` bytes per call.
+[`pread`/`pwrite`](https://manpages.ubuntu.com/manpages/jammy/en/man2/pread.2.html) combine [`lseek`](https://manpages.ubuntu.com/manpages/jammy/en/man2/lseek.2.html) and [`read`/`write`](https://manpages.ubuntu.com/manpages/jammy/en/man2/read.2.html). 
 ```C
 #include <unistd.h>
 
