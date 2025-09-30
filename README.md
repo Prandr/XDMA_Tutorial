@@ -32,7 +32,7 @@ For single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interf
 
 The driver allows to adjust the names of character devices with compile options for better overview and to reflect application. It is highly recommended to run `make help` to learn about these and many other configuration options for the driver.
 
-All interfaces are accessed by writing to or reading from them. See following sections for specifics for each device. Note that the Linux kernel limits file operations to ~2 GB. The driver provides a way to circumvent this limitation for DMA devices by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
+All interfaces are accessed with `write`, `read`, `lseek`, `pwrite`, `pread` system calls as appropriate. See following sections for specifics for each device.  C Library functions from `stdio.h` like `fread` should be avoided, as they can cause undesireable side effects. Note that the Linux kernel limits file operations to ~2 GB. The driver provides a way to circumvent this limitation for DMA devices by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
 
 ## Software Access to AXI Stream Blocks
 
