@@ -2,6 +2,8 @@
 
 Tutorial for an [XDMA](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction)-based peripheral FPGA design using [reworked XDMA driver](https://github.com/Prandr/dma_ip_drivers) that was adapted and extended from the [Tutorial for the original driver by mwrnd](https://github.com/mwrnd/notes/tree/main/XDMA_Communication).
 
+The tutorial can't replace PG195 linked above. It is rather meant to extend it on host programming. Therefore, it is advisable to study PG195 first for better understanding of underlying operation.
+
 
 # Table of Contents
 
@@ -23,7 +25,10 @@ Tutorial for an [XDMA](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introducti
 
 PCI Express is a [Layered Protocol](https://en.wikipedia.org/wiki/Protocol_stack). With the [XDMA Driver (*dma_ip_drivers*)](https://github.com/xilinx/dma_ip_drivers) running on the host PC and an [XDMA IP Block](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction) in your FPGA project, you operate at the Application layer. You read from and write to what appears as a file but it accesses the AXI Bus in your FPGA project. The XDMA Driver and XDMA IP Block handle the lower layers.
 
-The XDMA driver creates [character device files](https://en.wikipedia.org/wiki/Device_file#Character_devices) for easy access to an AXI Bus. By default, the write-only device for DMA transfers to **M_AXI** interface is named `/dev/xdma0_h2c_0`,  while the read-only `/dev/xdma0_c2h_0` serves the transfers in the opposite direction. To read from an AXI interface at address `0x12345000` you would read from address `0x12345000` of the `/dev/xdma0_c2h_0` (Card-to-Host) file. To write you would write to the appropriate address of the `/dev/xdma0_h2c_0` (Host-to-Card) file. For single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interface, `/dev/xdma0_user` is Read-Write. **M_AXI_BYPASS** interface could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md).
+The XDMA driver creates [character device files](https://en.wikipedia.org/wiki/Device_file#Character_devices) for easy access to interfaces . By default, the write-only device for DMA transfers to **M_AXI** interface is named `/dev/xdma0_h2c_0`,  while the read-only `/dev/xdma0_c2h_0` serves the transfers in the opposite direction. To read from an AXI interface at address `0x12345000` you would read from address `0x12345000` of the `/dev/xdma0_c2h_0` (Card-to-Host) file. To write you would write to the appropriate address of the `/dev/xdma0_h2c_0` (Host-to-Card) file. 
+
+
+For single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interface, `/dev/xdma0_user` is Read-Write. **M_AXI_BYPASS** interface could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md).
 
 The driver allows to adjust the names with compile options for better overview and to reflect application. It is highly recommended to run `make help` to learn about these and many other configuration options for the driver.
 
