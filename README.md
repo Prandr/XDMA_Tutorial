@@ -6,13 +6,13 @@ The tutorial can't replace PG195 linked above. It is rather meant to extend it o
 
 
 # Table of Contents
-
+   
+   * [Software Access to AXI Stream Blocks](#software-access-to-axi-stream-blocks)
    * [Software Access to Memory-Mapped Blocks](#software-access-to-memory-mapped-blocks)
       * [M_AXI](#m_axi)
       * [M_AXI_LITE](#m_axi_lite)
-   * [Software Access to AXI Stream Blocks](#software-access-to-axi-stream-blocks)
-   * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
+   * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Recreating a Project from a Tcl File](#recreating-a-project-from-a-tcl-file)
    * [Porting the Design to Another FPGA](#porting-the-design-to-another-fpga)
    * [Install XDMA Driver from dma_ip_drivers](#install-xdma-driver-from-dma_ip_drivers)
@@ -30,6 +30,78 @@ The XDMA driver creates [character device files](https://en.wikipedia.org/wiki/D
 For single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interface, `/dev/xdma0_user` is Read-Write. **M_AXI_BYPASS** interface `/dev/xdma0_bypass` could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md).
 
 The driver allows to adjust the names of character devices with compile options for better overview and to reflect application. It is highly recommended to run `make help` to learn about these and many other configuration options for the driver.
+
+
+## Software Access to AXI Stream Blocks
+
+**AXI4-Stream** is designed for continuous throughput. Multiples of the `tdata` width (64-Bits for this demo) up to the [Stream](https://docs.xilinx.com/r/en-US/pg085-axi4stream-infrastructure/AXI4-Stream-Data-FIFO?tocId=gyNUSa81sSudIrD3MNZ6aw) [FIFO](https://en.wikipedia.org/wiki/FIFO_(computing_and_electronics)) depth need to be read from C2H (Card-to-Host) or written to H2C (Host-to-Card).
+
+![XDMA Stream Block](img/XDMA_Stream_xdma_0_Block.png)
+
+See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo, [`xdma_stream.tcl`](xdma_stream.tcl). It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file). [Configuration bitstreams are available](https://github.com/mwrnd/notes/releases/v0.1.0/) for the [Innova-2](https://github.com/mwrnd/innova2_flex_xcku15p_notes).
+
+Each pair of input (H2C) floating-point values is multiplied to an output (C2H) floating-point value. To account for FIFOs built into the AXI4-Stream blocks, 16 floats (64-bytes) are sent and 8 are received. Data is sent and received to address `0` as it is a stream. The data stream sinks into **S_AXIS_C2H_?** and flows from **M_AXIS_H2C_?** interfaces. Check out the [xdma_stream_512bit](https://github.com/mwrnd/innova2_experiments/tree/main/xdma_stream_512bit) project for a more complex demonstration.
+
+![XDMA Stream Demo Block Diagram](img/XDMA_Stream_Demo_Block_Diagram.png)
+
+```C
+#define DATA_SIZE 64
+#define H2C_FLOAT_COUNT (DATA_SIZE / 4)
+#define C2H_FLOAT_COUNT (H2C_FLOAT_COUNT / 2)
+
+float h2c_data[H2C_FLOAT_COUNT];
+float c2h_data[C2H_FLOAT_COUNT];
+ssize_t rc = 0;
+
+int xdma_fd_wrte = open("/dev/xdma0_h2c_0", O_WRONLY);
+int xdma_fd_read = open("/dev/xdma0_c2h_0", O_RDONLY);
+
+printf("H2C_FLOAT_COUNT = %d, C2H_FLOAT_COUNT = %d\n",
+        H2C_FLOAT_COUNT, C2H_FLOAT_COUNT);
+
+// fill the write data buffer with floating point values
+for (int i = 0; i < H2C_FLOAT_COUNT; i++) { h2c_data[i]=(3.14*(i+1)); }
+
+
+// write data buffer to the AXI Stream - a float is 4-bytes
+// A Stream has no addresses so use 0 explicitly for consistency
+rc = pwrite(xdma_fd_wrte, h2c_data, (H2C_FLOAT_COUNT * 4), 0);
+printf("Write returned rc = %ld = number of bytes sent\n", rc);
+
+// read data from the AXI Stream into buffer - a float is 4-bytes
+rc = pread (xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * 4), 0);
+printf("Read  returned rc = %ld = number of bytes received\n", rc);
+
+
+// print the data in the return data (C2H) buffer
+uint32_t j = 0;
+float expected = 0;
+printf("\n");
+for (int i = 0 ; i < H2C_FLOAT_COUNT; i=i+2)
+{
+    j = floor((i / 2));
+    printf("%-2d, %-2d, h2c[%02d]*[%02d]=c2h[%02d] = %f*%f = %f",
+            i, j, i, (i+1), j, h2c_data[i], h2c_data[(i+1)], c2h_data[j]);
+    if (fabs((h2c_data[i] * h2c_data[(i+1)]) - c2h_data[j]) > 0.01)
+    {
+        expected = (h2c_data[i] * h2c_data[(i+1)]);
+        printf(" -- ERROR, was expecting %f", expected);
+    }
+    printf("\n");
+}
+
+close(xdma_fd_wrte);
+close(xdma_fd_read);
+```
+
+[`stream_test.c`](stream_test.c) contains the above in a full C program.
+```
+gcc -Wall stream_test.c -o stream_test -lm
+sudo ./stream_test
+```
+
+![AXI-Stream Test Program](img/stream_test_c_Run.png)
+
 
 
 ## Software Access to Memory-Mapped Blocks
@@ -162,290 +234,6 @@ sudo ./mm_axilite_test
 ```
 
 ![M_AXI_LITE Test Program](img/mm_axilite_test_Run.png)
-
-
-
-
-## Software Access to AXI Stream Blocks
-
-**AXI4-Stream** is designed for continuous throughput. Multiples of the `tdata` width (64-Bits for this demo) up to the [Stream](https://docs.xilinx.com/r/en-US/pg085-axi4stream-infrastructure/AXI4-Stream-Data-FIFO?tocId=gyNUSa81sSudIrD3MNZ6aw) [FIFO](https://en.wikipedia.org/wiki/FIFO_(computing_and_electronics)) depth need to be read from C2H (Card-to-Host) or written to H2C (Host-to-Card).
-
-![XDMA Stream Block](img/XDMA_Stream_xdma_0_Block.png)
-
-See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo, [`xdma_stream.tcl`](xdma_stream.tcl). It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file). [Configuration bitstreams are available](https://github.com/mwrnd/notes/releases/v0.1.0/) for the [Innova-2](https://github.com/mwrnd/innova2_flex_xcku15p_notes).
-
-Each pair of input (H2C) floating-point values is multiplied to an output (C2H) floating-point value. To account for FIFOs built into the AXI4-Stream blocks, 16 floats (64-bytes) are sent and 8 are received. Data is sent and received to address `0` as it is a stream. The data stream sinks into **S_AXIS_C2H_?** and flows from **M_AXIS_H2C_?** interfaces. Check out the [xdma_stream_512bit](https://github.com/mwrnd/innova2_experiments/tree/main/xdma_stream_512bit) project for a more complex demonstration.
-
-![XDMA Stream Demo Block Diagram](img/XDMA_Stream_Demo_Block_Diagram.png)
-
-```C
-#define DATA_SIZE 64
-#define H2C_FLOAT_COUNT (DATA_SIZE / 4)
-#define C2H_FLOAT_COUNT (H2C_FLOAT_COUNT / 2)
-
-float h2c_data[H2C_FLOAT_COUNT];
-float c2h_data[C2H_FLOAT_COUNT];
-ssize_t rc = 0;
-
-int xdma_fd_wrte = open("/dev/xdma0_h2c_0", O_WRONLY);
-int xdma_fd_read = open("/dev/xdma0_c2h_0", O_RDONLY);
-
-printf("H2C_FLOAT_COUNT = %d, C2H_FLOAT_COUNT = %d\n",
-        H2C_FLOAT_COUNT, C2H_FLOAT_COUNT);
-
-// fill the write data buffer with floating point values
-for (int i = 0; i < H2C_FLOAT_COUNT; i++) { h2c_data[i]=(3.14*(i+1)); }
-
-
-// write data buffer to the AXI Stream - a float is 4-bytes
-// A Stream has no addresses so use 0 explicitly for consistency
-rc = pwrite(xdma_fd_wrte, h2c_data, (H2C_FLOAT_COUNT * 4), 0);
-printf("Write returned rc = %ld = number of bytes sent\n", rc);
-
-// read data from the AXI Stream into buffer - a float is 4-bytes
-rc = pread (xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * 4), 0);
-printf("Read  returned rc = %ld = number of bytes received\n", rc);
-
-
-// print the data in the return data (C2H) buffer
-uint32_t j = 0;
-float expected = 0;
-printf("\n");
-for (int i = 0 ; i < H2C_FLOAT_COUNT; i=i+2)
-{
-    j = floor((i / 2));
-    printf("%-2d, %-2d, h2c[%02d]*[%02d]=c2h[%02d] = %f*%f = %f",
-            i, j, i, (i+1), j, h2c_data[i], h2c_data[(i+1)], c2h_data[j]);
-    if (fabs((h2c_data[i] * h2c_data[(i+1)]) - c2h_data[j]) > 0.01)
-    {
-        expected = (h2c_data[i] * h2c_data[(i+1)]);
-        printf(" -- ERROR, was expecting %f", expected);
-    }
-    printf("\n");
-}
-
-close(xdma_fd_wrte);
-close(xdma_fd_read);
-```
-
-[`stream_test.c`](stream_test.c) contains the above in a full C program.
-```
-gcc -Wall stream_test.c -o stream_test -lm
-sudo ./stream_test
-```
-
-![AXI-Stream Test Program](img/stream_test_c_Run.png)
-
-
-
-
-## Creating a Memory-Mapped XDMA Block Diagram Design
-
-This procedure will recreate the design in [`xdma_mm.tcl`](xdma_mm.tcl), which can also be `source`'ed in Vivado and [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file) to avoid the following.
-
-Start Vivado and choose *Create Project*:
-
-![Create Project](img/Vivado_Create_Project.png)
-
-It should be an RTL Project with no source files to start.
-
-![Create RTL Project](img/Vivado_Create_Project_New_Project.png)
-
-Choose the FPGA to target:
-
-![Choose Target FPGA](img/Vivado_Create_Project_Default_Part.png)
-
-Create a Block Design:
-
-![Create Block Design](img/Create_Block_Design.png)
-
-Add IP Blocks:
-
-![Add IP Blocks](img/Block_Diagram_Add_IP.png)
-
-
-#### Add XDMA Block
-
-Add an XDMA Block:
-
-![Add XDMA Block](img/Add_DMA_Bridge_Subsystem_for_PCI_Express_IP.png)
-
-Run Block Automation:
-
-![Run Block Automation](img/Run_Block_Automation.png)
-
-Choose PCIe Lane Width and Link Speed compatible with your target board. Select **AXI Memory Mapped** for the *DMA interface* and add an AXI Lite interface.
-
-![XDMA AXI Memory Mapped with AXI Lite](img/XDMA_Block_Automation_MM_and_AXILite.png)
-
-Block Automation should add the external PCIe TX+RX, Reset, and Clock signals:
-
-![Block Diagram after XDMA Block Automation](img/Block_Diagram_after_XDMA_Block_Automation.png)
-
-Double-click the `xdma_0` Block to open it up for customization. Notice *AXI Data Width* is 64-Bit.
-
-![XDMA Block Properties](img/XDMA_Block_Properties.png)
-
-The *PCIe Block Location* chosen should be the closest PCIE Block adjacent to the transceiver Quad that the PCIe lanes are connected to on your FPGA board. Refer to the [Device Packaging and Pinouts Product Specification User Guide](https://docs.xilinx.com/r/en-US/ug575-ultrascale-pkg-pinout/XCKU15P-and-XQKU15P-Bank-Diagrams).
-
-![FPGA Banks](img/FPGA_Banks.png)
-
-Set the PCIe ID *Base Class* to **Memory Controller** as the *Sub Class* to **Other memory controller**.
-
-![PCIe ID Settings](img/XDMA_Settings_PCIe_ID.png)
-
-A *PCIe to AXI Translation* offset is useful to make sure the *Size* of your AXI Lite BAR overlaps the address space of all peripheral blocks. This is useful when a soft-core processor has its [peripherals in a sequence at some address range](https://en.wikipedia.org/wiki/Memory-mapped_I/O_and_port-mapped_I/O) like `0x7001000`, `0x7002000`, `0x7003000`, etc. Leave it at `0` unless you have a reason to change it. It is set to a non-zero value in this example for illustrative purposes so that readers are aware of it when communicating with other's projects. The offset should be `0` or [larger than *Size*](https://support.xilinx.com/s/question/0D52E00006hpbPJSAY/pcie-to-axi-translation-setting-for-dma-bypass-interface-not-being-applied?language=en_US): `0x40000000 > 1MB==1048576==0x100000`. This offset becomes the lowest accessible memory address. All `M_AXI_LITE` IP Block addresses must be greater than the offset.
-
-![AXI Lite BAR Setup](img/XDMA_Block_Properties_AXILite_BAR_Setup.png)
-
-The XDMA Driver will create a `/dev/xdma0_?` file for each channel. Multiple channels allow multiple programs or threads to access the AXI blocks in your design.
-
-![Memory Mapped DMA Channels](img/XDMA_Block_Properties_DMA_Channels.png)
-
-
-#### Add SmartConnect Blocks
-
-Add AXI SmartConnect:
-
-![Add AXI SmartConnect](img/Add_AXI_SmartConnect_IP.png)
-
-For this project only one of each interface is required.
-
-![SmartConnect Block Properties](img/SmartConnect_Block_Properties.png)
-
-Both the **M_AXI** and **M_AXI_LITE** interfaces should have their own SmartConnect block. Connect their *aclk* input to the `xdma_0` block's *axi_aclk* and their *aresetn* input to *axi_aresetn*. Connect the `S00_AXI` port of one block to `M_AXI` of the XDMA Block and similarly for `M_AXI_LITE`.
-
-![SmartConnect Blocks for each AXI Interface](img/SmartConnect_Blocks_for_each_M_AXI_Interface.png)
-
-
-#### Add BRAM Controller Blocks
-
-Add AXI BRAM Controller:
-
-![Add AXI BRAM Controller](img/Add_AXI_BRAM_Controller_IP.png)
-
-Add a BRAM Controller for each SmartConnect interface and connect their `S_AXI` ports to the corresponding `M00_AXI` port of the SmartConnect blocks.
-
-![BRAM Controller Block for each SmartConnectInterface](img/BRAM_Controller_Blocks_for_each_SmartConnect_Interface.png)
-
-Double-click the `axi_bram_ctrl_0` block connected to the PCIe **M_AXI** interface and choose a Data Width that matches the *AXI Data Width* of the `xdma_0` block which is 64-Bit for this example. The Number of BRAM interfaces is set to 1 to simplify the design.
-
-![M_AXI BRAM Controller Data Width is 64-Bit](img/AXI_BRAM_Controller_Block_Properties_AXI_64Bit.png)
-
-Double-click the `axi_bram_ctrl_1` block connected to the PCIe **M_AXI_LITE** interface and choose *AXI4LITE* as the AXI Protocol which forces the Data Width to 32-Bit. The Number of BRAM interfaces is set to 1 to simplify the design.
-
-![M_AXI_LITE BRAM Controller Protocol is AXI4LITE](img/AXI_BRAM_Controller_Block_Properties_AXILite.png)
-
-Run Block Automation:
-
-![Run Block Automation](img/Run_Block_Automation.png)
-
-Choose to generate a new Block Memory for each (*New Blk_Mem_Gen*):
-
-![AXI BRAM Controller New Blk_Mem_Gen](img/AXI_BRAM_Controller_Block_Automation.png)
-
-A [Block Memory Generator](https://docs.xilinx.com/v/u/en-US/pg058-blk-mem-gen) should appear for each BRAM Controller.
-
-![Block Memory Generator for each BRAM Controller](img/Block_Memory_Generator_Blocks_for_each_BRAM_Controller.png)
-
-Click on the Block to Select it:
-
-![Select IP Block](img/IP_Block_Select.png)
-
-Press CTRL-R to rotate the block:
-
-![Rotate Block with CTRL-R](img/IP_Block_Rotate_with_CTRL-R.png)
-
-
-#### Memory-Mapped Block Diagram
-
-The Block Diagram is now complete:
-
-![XDMA Memory-Mapped Demo Block Diagram](img/XDMA_Demo_Block_Diagram.png)
-
-
-#### Address Editor
-
-Open the *Address Editor* tab, right-click and select *Assign All*:
-
-![Address Editor Assign All](img/Address_Editor_Assign_All.png)
-
-Edit the AXI Block addresses as required. The *Range* is the size that Vivado will implement for each block and this is where you set it. If the value is too large for your target FPGA then Implementation will fail. Larger sizes may have timing issues as more FPGA resources that are further apart are needed. Even though each Network can have overlapping addresses, avoid this as it can lead to confusion.
-
-![AXI Addresses](img/Address_Editor.png)
-
-
-#### Constraints
-
-Right-click in the *Sources* window to *Add Sources*:
-
-![Add Sources](img/Add_Sources.png)
-
-Add or Create a Constraints File:
-
-![Add Constraints File](img/Add_Sources_Constraints.png)
-
-Create File:
-
-![Create File](img/Add_Sources_Create_File.png)
-
-Name the Constraints File:
-
-![Name the Constraints File](img/Create_Constraints_File.png)
-
-Double-click the `constraints.xdc` file to edit it.
-
-![Constraints File](img/Constraints_File.png)
-
-You will need to edit the PCIe TX/RX, Reset, and Clock signals to your board's pins. The TX/RX and Clock signals are differential but only the positive terminals need to be set as that restricts the other terminal. `CONFIG_MODE` and other `BITSTREAM` settings may also need to be set for your target board.
-```
-set_property PACKAGE_PIN AH36 [get_ports {pcie_7x_mgt_rtl_0_rxp[0]}]
-
-set_property PACKAGE_PIN AB27 [get_ports {diff_clock_rtl_0_clk_p[0]}]
-create_clock -name sys_clk -period 10.000 [get_ports diff_clock_rtl_0_clk_p]
-
-set_property PACKAGE_PIN F2 [get_ports reset_rtl_0]
-set_property IOSTANDARD LVCMOS33 [get_ports reset_rtl_0]
-set_false_path -from [get_ports reset_rtl_0]
-
-set_property CONFIG_MODE SPIx8 [current_design]
-set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
-# ... rest of BITSTREAM settings ...
-```
-
-![Edit constraints XDC File](img/Edit_constraints_XDC_File.png)
-
-
-#### HDL Wrapper
-
-Right-click on your Block Diagram (`.bd`) design file and choose *Create HDL Wrapper*:
-
-![Create HDL Wrapper](img/Create_HDL_Wrapper.png)
-
-Let Vivado Manage the HDL Wrapper file:
-
-![Let Vivado Manage HDL Wrapper](img/Create_HDL_Wrapper_Vivado_Managed.png)
-
-
-#### Generate Bitstream
-
-The source files should now be ready for Bitsream generation:
-
-![Sources Ready for Bitstream Generation](img/Sources_Ready_for_Bitstream_Generation.png)
-
-Generate the Bitstream:
-
-![Generate the Bitstream](img/Generate_Bitstream.png)
-
-Synthesis and Implementation should take about 10 minutes:
-
-![Resources Used](img/XDMA_Demo_Resources_Used.png)
-
-Generate a Memory Configuration File and follow your board's instructions for programming.
-
-![Generate a Memory Configuration File](img/Generate_Memory_Configuration_File.png)
-
-
 
 
 ## Creating an AXI4-Stream XDMA Block Diagram Design
@@ -724,6 +512,215 @@ source PROJECT_NAME.tcl
 ```
 
 ![Vivado source Tcl Project](img/Vivado_source_Tcl_Project.png)
+
+
+## Creating a Memory-Mapped XDMA Block Diagram Design
+
+This procedure will recreate the design in [`xdma_mm.tcl`](xdma_mm.tcl), which can also be `source`'ed in Vivado and [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file) to avoid the following.
+
+Start Vivado and choose *Create Project*:
+
+![Create Project](img/Vivado_Create_Project.png)
+
+It should be an RTL Project with no source files to start.
+
+![Create RTL Project](img/Vivado_Create_Project_New_Project.png)
+
+Choose the FPGA to target:
+
+![Choose Target FPGA](img/Vivado_Create_Project_Default_Part.png)
+
+Create a Block Design:
+
+![Create Block Design](img/Create_Block_Design.png)
+
+Add IP Blocks:
+
+![Add IP Blocks](img/Block_Diagram_Add_IP.png)
+
+
+#### Add XDMA Block
+
+Add an XDMA Block:
+
+![Add XDMA Block](img/Add_DMA_Bridge_Subsystem_for_PCI_Express_IP.png)
+
+Run Block Automation:
+
+![Run Block Automation](img/Run_Block_Automation.png)
+
+Choose PCIe Lane Width and Link Speed compatible with your target board. Select **AXI Memory Mapped** for the *DMA interface* and add an AXI Lite interface.
+
+![XDMA AXI Memory Mapped with AXI Lite](img/XDMA_Block_Automation_MM_and_AXILite.png)
+
+Block Automation should add the external PCIe TX+RX, Reset, and Clock signals:
+
+![Block Diagram after XDMA Block Automation](img/Block_Diagram_after_XDMA_Block_Automation.png)
+
+Double-click the `xdma_0` Block to open it up for customization. Notice *AXI Data Width* is 64-Bit.
+
+![XDMA Block Properties](img/XDMA_Block_Properties.png)
+
+The *PCIe Block Location* chosen should be the closest PCIE Block adjacent to the transceiver Quad that the PCIe lanes are connected to on your FPGA board. Refer to the [Device Packaging and Pinouts Product Specification User Guide](https://docs.xilinx.com/r/en-US/ug575-ultrascale-pkg-pinout/XCKU15P-and-XQKU15P-Bank-Diagrams).
+
+![FPGA Banks](img/FPGA_Banks.png)
+
+Set the PCIe ID *Base Class* to **Memory Controller** as the *Sub Class* to **Other memory controller**.
+
+![PCIe ID Settings](img/XDMA_Settings_PCIe_ID.png)
+
+A *PCIe to AXI Translation* offset is useful to make sure the *Size* of your AXI Lite BAR overlaps the address space of all peripheral blocks. This is useful when a soft-core processor has its [peripherals in a sequence at some address range](https://en.wikipedia.org/wiki/Memory-mapped_I/O_and_port-mapped_I/O) like `0x7001000`, `0x7002000`, `0x7003000`, etc. Leave it at `0` unless you have a reason to change it. It is set to a non-zero value in this example for illustrative purposes so that readers are aware of it when communicating with other's projects. The offset should be `0` or [larger than *Size*](https://support.xilinx.com/s/question/0D52E00006hpbPJSAY/pcie-to-axi-translation-setting-for-dma-bypass-interface-not-being-applied?language=en_US): `0x40000000 > 1MB==1048576==0x100000`. This offset becomes the lowest accessible memory address. All `M_AXI_LITE` IP Block addresses must be greater than the offset.
+
+![AXI Lite BAR Setup](img/XDMA_Block_Properties_AXILite_BAR_Setup.png)
+
+The XDMA Driver will create a `/dev/xdma0_?` file for each channel. Multiple channels allow multiple programs or threads to access the AXI blocks in your design.
+
+![Memory Mapped DMA Channels](img/XDMA_Block_Properties_DMA_Channels.png)
+
+
+#### Add SmartConnect Blocks
+
+Add AXI SmartConnect:
+
+![Add AXI SmartConnect](img/Add_AXI_SmartConnect_IP.png)
+
+For this project only one of each interface is required.
+
+![SmartConnect Block Properties](img/SmartConnect_Block_Properties.png)
+
+Both the **M_AXI** and **M_AXI_LITE** interfaces should have their own SmartConnect block. Connect their *aclk* input to the `xdma_0` block's *axi_aclk* and their *aresetn* input to *axi_aresetn*. Connect the `S00_AXI` port of one block to `M_AXI` of the XDMA Block and similarly for `M_AXI_LITE`.
+
+![SmartConnect Blocks for each AXI Interface](img/SmartConnect_Blocks_for_each_M_AXI_Interface.png)
+
+
+#### Add BRAM Controller Blocks
+
+Add AXI BRAM Controller:
+
+![Add AXI BRAM Controller](img/Add_AXI_BRAM_Controller_IP.png)
+
+Add a BRAM Controller for each SmartConnect interface and connect their `S_AXI` ports to the corresponding `M00_AXI` port of the SmartConnect blocks.
+
+![BRAM Controller Block for each SmartConnectInterface](img/BRAM_Controller_Blocks_for_each_SmartConnect_Interface.png)
+
+Double-click the `axi_bram_ctrl_0` block connected to the PCIe **M_AXI** interface and choose a Data Width that matches the *AXI Data Width* of the `xdma_0` block which is 64-Bit for this example. The Number of BRAM interfaces is set to 1 to simplify the design.
+
+![M_AXI BRAM Controller Data Width is 64-Bit](img/AXI_BRAM_Controller_Block_Properties_AXI_64Bit.png)
+
+Double-click the `axi_bram_ctrl_1` block connected to the PCIe **M_AXI_LITE** interface and choose *AXI4LITE* as the AXI Protocol which forces the Data Width to 32-Bit. The Number of BRAM interfaces is set to 1 to simplify the design.
+
+![M_AXI_LITE BRAM Controller Protocol is AXI4LITE](img/AXI_BRAM_Controller_Block_Properties_AXILite.png)
+
+Run Block Automation:
+
+![Run Block Automation](img/Run_Block_Automation.png)
+
+Choose to generate a new Block Memory for each (*New Blk_Mem_Gen*):
+
+![AXI BRAM Controller New Blk_Mem_Gen](img/AXI_BRAM_Controller_Block_Automation.png)
+
+A [Block Memory Generator](https://docs.xilinx.com/v/u/en-US/pg058-blk-mem-gen) should appear for each BRAM Controller.
+
+![Block Memory Generator for each BRAM Controller](img/Block_Memory_Generator_Blocks_for_each_BRAM_Controller.png)
+
+Click on the Block to Select it:
+
+![Select IP Block](img/IP_Block_Select.png)
+
+Press CTRL-R to rotate the block:
+
+![Rotate Block with CTRL-R](img/IP_Block_Rotate_with_CTRL-R.png)
+
+
+#### Memory-Mapped Block Diagram
+
+The Block Diagram is now complete:
+
+![XDMA Memory-Mapped Demo Block Diagram](img/XDMA_Demo_Block_Diagram.png)
+
+
+#### Address Editor
+
+Open the *Address Editor* tab, right-click and select *Assign All*:
+
+![Address Editor Assign All](img/Address_Editor_Assign_All.png)
+
+Edit the AXI Block addresses as required. The *Range* is the size that Vivado will implement for each block and this is where you set it. If the value is too large for your target FPGA then Implementation will fail. Larger sizes may have timing issues as more FPGA resources that are further apart are needed. Even though each Network can have overlapping addresses, avoid this as it can lead to confusion.
+
+![AXI Addresses](img/Address_Editor.png)
+
+
+#### Constraints
+
+Right-click in the *Sources* window to *Add Sources*:
+
+![Add Sources](img/Add_Sources.png)
+
+Add or Create a Constraints File:
+
+![Add Constraints File](img/Add_Sources_Constraints.png)
+
+Create File:
+
+![Create File](img/Add_Sources_Create_File.png)
+
+Name the Constraints File:
+
+![Name the Constraints File](img/Create_Constraints_File.png)
+
+Double-click the `constraints.xdc` file to edit it.
+
+![Constraints File](img/Constraints_File.png)
+
+You will need to edit the PCIe TX/RX, Reset, and Clock signals to your board's pins. The TX/RX and Clock signals are differential but only the positive terminals need to be set as that restricts the other terminal. `CONFIG_MODE` and other `BITSTREAM` settings may also need to be set for your target board.
+```
+set_property PACKAGE_PIN AH36 [get_ports {pcie_7x_mgt_rtl_0_rxp[0]}]
+
+set_property PACKAGE_PIN AB27 [get_ports {diff_clock_rtl_0_clk_p[0]}]
+create_clock -name sys_clk -period 10.000 [get_ports diff_clock_rtl_0_clk_p]
+
+set_property PACKAGE_PIN F2 [get_ports reset_rtl_0]
+set_property IOSTANDARD LVCMOS33 [get_ports reset_rtl_0]
+set_false_path -from [get_ports reset_rtl_0]
+
+set_property CONFIG_MODE SPIx8 [current_design]
+set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
+# ... rest of BITSTREAM settings ...
+```
+
+![Edit constraints XDC File](img/Edit_constraints_XDC_File.png)
+
+
+#### HDL Wrapper
+
+Right-click on your Block Diagram (`.bd`) design file and choose *Create HDL Wrapper*:
+
+![Create HDL Wrapper](img/Create_HDL_Wrapper.png)
+
+Let Vivado Manage the HDL Wrapper file:
+
+![Let Vivado Manage HDL Wrapper](img/Create_HDL_Wrapper_Vivado_Managed.png)
+
+
+#### Generate Bitstream
+
+The source files should now be ready for Bitsream generation:
+
+![Sources Ready for Bitstream Generation](img/Sources_Ready_for_Bitstream_Generation.png)
+
+Generate the Bitstream:
+
+![Generate the Bitstream](img/Generate_Bitstream.png)
+
+Synthesis and Implementation should take about 10 minutes:
+
+![Resources Used](img/XDMA_Demo_Resources_Used.png)
+
+Generate a Memory Configuration File and follow your board's instructions for programming.
+
+![Generate a Memory Configuration File](img/Generate_Memory_Configuration_File.png)
+
+
 
 
 ### Porting the Design to Another FPGA
