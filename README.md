@@ -11,6 +11,7 @@ The tutorial can't replace PG195 linked above. It is rather meant to extend it o
    * [Software Access to Memory-Mapped Blocks](#software-access-to-memory-mapped-blocks)
       * [M_AXI](#m_axi)
       * [M_AXI_LITE](#m_axi_lite)
+   * [DMA Transfers with `ioctl`](dma-transfers-with-ioctl)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Recreating a Project from a Tcl File](#recreating-a-project-from-a-tcl-file)
@@ -235,6 +236,7 @@ sudo ./mm_axilite_test
 
 ![M_AXI_LITE Test Program](img/mm_axilite_test_Run.png)
 
+## DMA Transfers with `ioctl`
 
 ## Creating an AXI4-Stream XDMA Block Diagram Design
 
