@@ -2,9 +2,8 @@
 
 Prerequisites:
  - Xilinx XDMA AXI-Stream Project:
-   github.com/mwrnd/notes/tree/main/XDMA_Communication
+   https://github.com/Prandr/XDMA_Tutorial
  - XDMA Drivers from github.com/xilinx/dma_ip_drivers
-   Install Instructions at github.com/mwrnd/innova2_flex_xcku15p_notes
 
 Compile with:
 
@@ -56,13 +55,12 @@ int main(int argc, char **argv)
 
 
 
-	// write data buffer to the AXI Stream - a float is 4-bytes
-	// A Stream has no addresses so use 0 explicitly for consistency
-	rc = pwrite(xdma_fd_wrte, h2c_data, (H2C_FLOAT_COUNT * 4), 0);
+	// write data buffer to the AXI Stream
+	rc = write(xdma_fd_wrte, h2c_data, (H2C_FLOAT_COUNT * sizeof(float)));
 	printf("Write returned rc = %ld = number of bytes sent\n", rc);
 
-	// read data from the AXI Stream into buffer - a float is 4-bytes
-	rc = pread (xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * 4), 0);
+	// read data from the AXI Stream into buffer 
+	rc = read (xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * sizeof(float)));
 	printf("Read  returned rc = %ld = number of bytes received\n", rc);
 
 

@@ -40,11 +40,27 @@ All interfaces are accessed with `write`, `read`, `lseek`, `pwrite`, `pread` sys
 
 ![XDMA Stream Block](img/XDMA_Stream_xdma_0_Block.png)
 
-See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo, [`xdma_stream.tcl`](xdma_stream.tcl). It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file). [Configuration bitstreams are available](https://github.com/mwrnd/notes/releases/v0.1.0/) for the [Innova-2](https://github.com/mwrnd/innova2_flex_xcku15p_notes).
+See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo, [`xdma_stream.tcl`](xdma_stream.tcl). It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
 
-Each pair of input (H2C) floating-point values is multiplied to an output (C2H) floating-point value. To account for FIFOs built into the AXI4-Stream blocks, 16 floats (64-bytes) are sent and 8 are received. Data is sent and received to address `0` as it is a stream. The data stream sinks into **S_AXIS_C2H_?** and flows from **M_AXIS_H2C_?** interfaces. Check out the [xdma_stream_512bit](https://github.com/mwrnd/innova2_experiments/tree/main/xdma_stream_512bit) project for a more complex demonstration.
+Each pair of input (H2C) floating-point values is multiplied to an output (C2H) floating-point value. To account for FIFOs built into the AXI4-Stream blocks, 16 floats (64-bytes) are sent and 8 are received. The data stream sinks into **S_AXIS_C2H_?** and flows from **M_AXIS_H2C_?** interface ports.
+
+To send data to an M\_AXIS\_H2C\_? port you should use `write` system call to write to the corresponding device file. 
+To retrieve data from an S\_AXIS\_C2H\_? port you should use `read` system call to read from the corresponding device file. 
+
+
+```C
+#include <unistd.h>
+
+ssize_t write(int fd, const void *buf, size_t count);
+ssize_t read(int fd, const void *buf, size_t count);
+```
+
+Linux kernel truncates the `count` parameter of these funcions to ~2 GB. The driver provides a way to circumvent this limitation by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
 
 ![XDMA Stream Demo Block Diagram](img/XDMA_Stream_Demo_Block_Diagram.png)
+
+
+
 
 ```C
 #define DATA_SIZE 64
@@ -65,13 +81,13 @@ printf("H2C_FLOAT_COUNT = %d, C2H_FLOAT_COUNT = %d\n",
 for (int i = 0; i < H2C_FLOAT_COUNT; i++) { h2c_data[i]=(3.14*(i+1)); }
 
 
-// write data buffer to the AXI Stream - a float is 4-bytes
+// write data buffer to the AXI Stream
 // A Stream has no addresses so use 0 explicitly for consistency
-rc = pwrite(xdma_fd_wrte, h2c_data, (H2C_FLOAT_COUNT * 4), 0);
+rc = write(xdma_fd_wrte, h2c_data, (H2C_FLOAT_COUNT * sizeof(float)));
 printf("Write returned rc = %ld = number of bytes sent\n", rc);
 
-// read data from the AXI Stream into buffer - a float is 4-bytes
-rc = pread (xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * 4), 0);
+// read data from the AXI Stream into buffer
+rc = read (xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * sizeof(float)));
 printf("Read  returned rc = %ld = number of bytes received\n", rc);
 
 
