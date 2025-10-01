@@ -518,21 +518,6 @@ Generate a Memory Configuration File and follow your board's instructions for pr
 ![Generate a Memory Configuration File](img/Generate_Memory_Configuration_File.png)
 
 
-
-
-## Recreating a Project from a Tcl File
-
-Run the [`source`](https://docs.xilinx.com/r/2022.2-English/ug939-vivado-designing-with-ip-tutorial/Source-the-Tcl-Script?tocId=7apMNdBzAEx4udRnUANS9A) command in the Vivado *Tcl Console* to recreate a project. The [`constraints.xdc`](constraints.xdc) file needs to be in the same directory.
-```
-pwd
-cd DOWNLOAD_DIRECTORY
-dir
-source PROJECT_NAME.tcl
-```
-
-![Vivado source Tcl Project](img/Vivado_source_Tcl_Project.png)
-
-
 ## Creating a Memory-Mapped XDMA Block Diagram Design
 
 This procedure will recreate the design in [`xdma_mm.tcl`](xdma_mm.tcl), which can also be `source`'ed in Vivado and [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file) to avoid the following.
@@ -740,6 +725,17 @@ Generate a Memory Configuration File and follow your board's instructions for pr
 ![Generate a Memory Configuration File](img/Generate_Memory_Configuration_File.png)
 
 
+## Recreating a Project from a Tcl File
+
+Run the [`source`](https://docs.xilinx.com/r/2022.2-English/ug939-vivado-designing-with-ip-tutorial/Source-the-Tcl-Script?tocId=7apMNdBzAEx4udRnUANS9A) command in the Vivado *Tcl Console* to recreate a project. The [`constraints.xdc`](constraints.xdc) file needs to be in the same directory.
+```
+pwd
+cd DOWNLOAD_DIRECTORY
+dir
+source PROJECT_NAME.tcl
+```
+
+![Vivado source Tcl Project](img/Vivado_source_Tcl_Project.png)
 
 
 ### Porting the Design to Another FPGA
