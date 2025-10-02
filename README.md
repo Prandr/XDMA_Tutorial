@@ -11,6 +11,7 @@ The tutorial can't replace PG195 linked above. It is rather meant to supplement 
    * [Software Access to Memory-Mapped Blocks](#software-access-to-memory-mapped-blocks)
       * [M_AXI](#m_axi)
       * [M_AXI_LITE](#m_axi_lite)
+      * [M_AXI_BYPASS](#m_axi_bypass)
    * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
@@ -269,7 +270,6 @@ printf(", rc = %ld\n", rc);
 
 
 close(xdma_userfd);
-exit(EXIT_SUCCESS);
 ```
 
 [`mm_axilite_test.c`](mm_axilite_test.c) contains the above in a full C program.
@@ -280,6 +280,67 @@ sudo ./mm_axilite_test
 ```
 
 ![M_AXI_LITE Test Program](img/mm_axilite_test_Run.png)
+
+### M_AXI_BYPASS
+
+The **M_AXI_BYPASS** interface could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md), since it utilises direct device memory I/O instead of DMA and thus avoids the overhead of the latter in setting up a transfer.
+On the other hand, it is faster and more efficient than AXI-Lite as it allows to transmit unlimited amount data in a single call and in 64-bit pieces if executed on a 64-bit host.
+
+The example code is superficially similar to M\_AXI above, but demostrates usage of `lseek` and opens  `/dev/xdma0_bypass` in  Read-Write `O_RDWR` mode as it is supports bidirectional access.
+The PCIe to AXI Translation offset is set to 0, therefore the address directly correspond to the address in the device.
+```C
+#define DATA_BYTES	8192
+#define DATA_WORDS	(DATA_BYTES/sizeof(uint32_t))
+
+uint32_t write_buffer[DATA_WORDS]={};
+uint32_t read_buffer[DATA_WORDS]={};
+const uint64_t address = 0x00000000;
+int xdma_bypass_fd = 0;
+ssize_t rc;
+
+// Fill the write_buffer with data
+for (int i = 0; i < DATA_WORDS; i++) { write_buffer[i] = (DATA_WORDS - i); }
+
+printf("Buffer Contents before H2C write: \n");
+printf("[0]=%04d, [4]=%04d, [%ld]=%04d\n",
+	(uint32_t)write_buffer[0], (uint32_t)write_buffer[4],
+	(DATA_WORDS - 3), (uint32_t)write_buffer[(DATA_WORDS - 3)]);
+
+// Open M_AXI_BYPASS as read-write
+xdma_bypass_fd = open("/dev/xdma0_bypass", O_RDWR);
+
+//set address. In this case redundant, because the address is 0 after opening anyway.
+lseek(xdma_bypass_fd, address, SEEK_SET);
+
+// Write the full write_buffer to the FPGA design's BRAM
+rc = write(xdma_bypass_fd, write_buffer, DATA_BYTES);
+
+
+//restore address back to 0.
+lseek(xdma_bypass_fd, address, SEEK_SET);
+
+// Read the full read_buffer from the FPGA design's BRAM
+rc = read(xdma_bypass_fd, read_buffer, DATA_BYTES);
+
+printf("\nBuffer Contents after C2H read: \n");
+printf("[0]=%04d, [4]=%04d, [%ld]=%04d\n",
+	(uint32_t)read_buffer[0], (uint32_t)read_buffer[4],
+	(DATA_WORDS - 3), (uint32_t)read_buffer[(DATA_WORDS - 3)]);
+
+printf("\nrc = %ld = bytes read from FPGA's BRAM\n", rc);
+
+
+close(xdma_bypass_fd);
+```
+
+[`mm_axi_bypass_test.c`](mm_axi_bypass_test.c) contains the above in a full C program.
+
+```
+gcc -Wall mm_axi_bypass_test.c -o mm_axi_bypass_test
+sudo ./mm_axi_bypass_test
+```
+
+![M_AXI_BYPASS Test Program](img/mm_axi_bypass_test_Run.png)
 
 ## DMA Transfers with `ioctl`
 
@@ -601,7 +662,7 @@ Make sure that device ID is set to 8034 and set the PCIe ID *Base Class* to **Me
 
 ![PCIe ID Settings](img/XDMA_Settings_PCIe_ID.png)
 
-Choose a size greater than the sum of sizes of address ranges of your blocks.
+Choose size of the BAR such that it would be greater than the sum of sizes of address ranges of your blocks.
 
 A *PCIe to AXI Translation* offset is useful to make sure the *Size* of your AXI Lite address space overlaps the address ranges of all peripheral blocks. This is useful when a soft-core processor has its [peripherals in a sequence at some address range](https://en.wikipedia.org/wiki/Memory-mapped_I/O_and_port-mapped_I/O) like `0x7001000`, `0x7002000`, `0x7003000`, etc. Leave it at `0` unless you have a reason to change it. It is set to a non-zero value in this example for illustrative purposes so that readers are aware of it when communicating with other's projects. The offset should be `0` or [larger than *Size*](https://support.xilinx.com/s/question/0D52E00006hpbPJSAY/pcie-to-axi-translation-setting-for-dma-bypass-interface-not-being-applied?language=en_US): `0x40000000 > 1MB==1048576==0x100000`. This offset becomes the lowest accessible memory address. All `M_AXI_LITE` IP Block addresses must be greater than the offset.
 
@@ -681,7 +742,7 @@ Open the *Address Editor* tab, right-click and select *Assign All*:
 
 ![Address Editor Assign All](img/Address_Editor_Assign_All.png)
 
-Edit the AXI Block addresses as required. The *Range* is the size that Vivado will implement for each block and this is where you set it. Even though each Network can have overlapping addresses, avoid this as it can lead to confusion.
+Edit the AXI Block addresses as required. The *Range* is the size that Vivado will implement for each block and this is where you set it. Even though each Network can have overlapping addresses, avoid this as it can lead to confusion.  The address range of each block must fall within (PCIe to AXI Translation offset + size of the BAR).
 
 ![AXI Addresses](img/Address_Editor.png)
 
