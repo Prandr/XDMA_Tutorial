@@ -124,22 +124,47 @@ sudo ./stream_test
 
 ## Software Access to Memory-Mapped Blocks
 
-See [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design) below for instructions to re create the simple included demo, [`xdma_mm.tcl`](xdma_mm.tcl). It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file). [Configuration bitstreams are available](https://github.com/mwrnd/notes/releases/v0.1.0/) for the [Innova-2](https://github.com/mwrnd/innova2_flex_xcku15p_notes).
+See [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design) below for instructions to re create the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
 
 ![XDMA Memory-Mapped Demo Block Diagram](img/XDMA_Demo_Block_Diagram.png)
 
-To read from an AXI interface at address `0x12345000` you would read from address `0x12345000` of the `/dev/xdma0_c2h_0` (Card-to-Host) file. To write you would write to the appropriate address of the `/dev/xdma0_h2c_0` (Host-to-Card) file. 
+To download data from a memory mapped AXI interface at address `0x12345000` you would read from address `0x12345000` of the `/dev/xdma0_c2h_0` (Card-to-Host) file. To upload data you would write to the appropriate address of the `/dev/xdma0_h2c_0` (Host-to-Card) file.
 
-[`pread`/`pwrite`](https://manpages.ubuntu.com/manpages/jammy/en/man2/pread.2.html) combine [`lseek`](https://manpages.ubuntu.com/manpages/jammy/en/man2/lseek.2.html) and [`read`/`write`](https://manpages.ubuntu.com/manpages/jammy/en/man2/read.2.html). 
+This can be accomplished in 2 ways:
+
+1. Set address with [`lseek`](https://man7.org/linux/man-pages/man2/lseek.2.html), then use `read` or `write`. `offset` argument in combination with `SEEK_SET` as `whence` argument directly corresponds to the address. `lseek` comes with additional flexibility with `SEEK_CUR` and `SEEK_END` `whence` options, that allows to set the endpoint address relative respectively to current value or the end of the address space. This could be useful in some cases.
+    
+    ```C
+    #include <unistd.h>
+
+    off_t lseek(int fd, off_t offset, int whence);
+    ssize_t write(int fd, const void *buf, size_t count);
+    ssize_t read(int fd, const void *buf, size_t count);
+    ```
+2. `pread` and `pwrite` allow to access the address (`offset` argument) directly. 
+    ```C
+    #include <unistd.h>
+    
+    ssize_t pread(int fd, void *buf, size_t count, off_t offset);
+    ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
+    ```
+
+With both ways Linux kernel truncates the `count` parameter of the funcions to ~2 GB. The driver provides a way to circumvent this limitation by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
+
+The 2 methods are not exactly equivalent. `write` and `read` advance address by `count` after performing successful operation. Thus repeated call would access this address:
+
 ```C
-#include <unistd.h>
-
-ssize_t pread(int fd, void *buf, size_t count, off_t offset);
-ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
+#define READ_SIZE 1024
+lseek(fd, 0x40001000, SEEK_SET); //set address to 0x40001000
+read(fd, read_buf, READ_SIZE); //perform the read operation. Advances the address by 1024/0x400.
+read(fd, read_buf, READ_SIZE); //perform the read operation from address 0x40001400, in turn advances the address by 1024/0x400.
+lseek(fd, -READ_SIZE, SEEK_CUR); // reset the address to the start address of tha last operation (0x40001400)
 ```
+This may be handy for accessing of consecutive address ranges, as it makes it unneccessary to track address and to repeatedly call `lseek`.
 
+`pwrite` and `pread` leave the address untouched. They may be more convienient for accesses to non-consecutive address ranges as well as repeated accesses to the same address.
 
-
+Note that the Linux kernel limits file operations to ~2 GB. The driver provides a way to circumvent this limitation for DMA devices by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
 
 ### M_AXI
 
