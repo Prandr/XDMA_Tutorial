@@ -179,45 +179,47 @@ The [BRAM Controller Block](https://docs.xilinx.com/v/u/en-US/pg078-axi-bram-ctr
 The following is some minimal C code without error checking. Observe the `buffer` is defined as an array of [32-Bit unsigned integers (`uint32_t`)](https://manpages.ubuntu.com/manpages/trusty/en/man7/stdint.h.7posix.html) and is used as such but `pread`/`pwrite` operate on bytes, hence the `#define`s for `DATA_BYTES` and `DATA_WORDS`. `/dev/xdma0_h2c_0` (Host-to-Card) is opened as Write-Only ([`O_WRONLY`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)). `/dev/xdma0_c2h_0` (Card-to-Host) is opened as Read-Only ([`O_RDONLY`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)).
 ```C
 #define DATA_BYTES    8192
-#define DATA_WORDS    (DATA_BYTES/4)
+#define DATA_WORDS    (DATA_BYTES/sizeof(uint32_t))
 
-uint32_t buffer[DATA_WORDS];
+uint32_t write_buffer[DATA_WORDS]={};
+uint32_t read_buffer[DATA_WORDS]={};
 uint64_t address = 0xC0000000;
+int xdma_h2cfd = 0;
+int xdma_c2hfd = 0;
 ssize_t rc;
 
-// Fill the buffer with data
-for (int i = 0; i < DATA_WORDS; i++) { buffer[i] = (DATA_WORDS - i); }
+// Fill the write_buffer with data
+for (int i = 0; i < DATA_WORDS; i++) { write_buffer[i] = (DATA_WORDS - i); }
 
 printf("Buffer Contents before H2C write: \n");
-printf("[0]=%04d, [4]=%04d, [%d]=%04d\n",
-        (uint32_t)buffer[0], (uint32_t)buffer[4],
-        (DATA_WORDS - 3), (uint32_t)buffer[(DATA_WORDS - 3)]);
+printf("[0]=%04d, [4]=%04d, [%ld]=%04d\n",
+	(uint32_t)write_buffer[0], (uint32_t)write_buffer[4],
+	(DATA_WORDS - 3), (uint32_t)write_buffer[(DATA_WORDS - 3)]);
 
 // Open M_AXI H2C Host-to-Card Device as Write-Only
-int xdma_h2cfd = open("/dev/xdma0_h2c_0", O_WRONLY);
+xdma_h2cfd = open("/dev/xdma0_h2c_0", O_WRONLY);
 
-// Write the full buffer to the FPGA design's BRAM
-rc = pwrite(xdma_h2cfd, buffer, DATA_BYTES, address);
+// Write the full write_buffer to the FPGA design's BRAM
+rc = pwrite(xdma_h2cfd, write_buffer, DATA_BYTES, address);
 
-// Clear the buffer to make sure data was read from FPGA
-printf("\nClearing buffer.\n");
-for (int i = 0; i < DATA_WORDS ; i++) { buffer[i] = 0; }
 
 // Open M_AXI C2H Card-to-Host Device as Read-Only
-int xdma_c2hfd = open("/dev/xdma0_c2h_0", O_RDONLY);
+xdma_c2hfd = open("/dev/xdma0_c2h_0", O_RDONLY);
 
-// Read the full buffer from the FPGA design's BRAM
-rc = pread(xdma_c2hfd, buffer, DATA_BYTES, address);
+// Read the full read_buffer from the FPGA design's BRAM
+rc = pread(xdma_c2hfd, read_buffer, DATA_BYTES, address);
 
 printf("\nBuffer Contents after C2H read: \n");
-printf("[0]=%04d, [4]=%04d, [%d]=%04d\n",
-        (uint32_t)buffer[0], (uint32_t)buffer[4],
-        (DATA_WORDS - 3), (uint32_t)buffer[(DATA_WORDS-3)]);
+printf("[0]=%04d, [4]=%04d, [%ld]=%04d\n",
+	(uint32_t)read_buffer[0], (uint32_t)read_buffer[4],
+	(DATA_WORDS - 3), (uint32_t)read_buffer[(DATA_WORDS - 3)]);
 
 printf("\nrc = %ld = bytes read from FPGA's BRAM\n", rc);
 
+
 close(xdma_h2cfd);
 close(xdma_c2hfd);
+exit(EXIT_SUCCESS);
 ```
 
 [`mm_axi_test.c`](mm_axi_test.c) contains the above in a full C program.

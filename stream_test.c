@@ -3,7 +3,7 @@
 Prerequisites:
  - Xilinx XDMA AXI-Stream Project:
    https://github.com/Prandr/XDMA_Tutorial
- - XDMA Drivers from github.com/xilinx/dma_ip_drivers
+ - XDMA Drivers from https://github.com/Prandr/dma_ip_drivers
 
 Compile with:
 
