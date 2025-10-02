@@ -2,7 +2,7 @@
 
 Tutorial for an [XDMA](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction)-based peripheral FPGA design using [reworked XDMA driver](https://github.com/Prandr/dma_ip_drivers) that was adapted and extended from the [Tutorial for the original driver by mwrnd](https://github.com/mwrnd/notes/tree/main/XDMA_Communication).
 
-The tutorial can't replace PG195 linked above. It is rather meant to extend it on host programming. Therefore, it is advisable to study PG195 first for better understanding of underlying operation.
+The tutorial can't replace PG195 linked above. It is rather meant to supplement it on host programming. Therefore, it is advisable to study PG195 first for better understanding of underlying operation.
 
 
 # Table of Contents
