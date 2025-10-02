@@ -304,13 +304,13 @@ The *PCIe Block Location* chosen should be the closest PCIE Block adjacent to th
 
 ![FPGA Banks](img/FPGA_Banks.png)
 
-Set the PCIe ID *Base Class* to **Memory Controller** as the *Sub Class* to **Other memory controller**.
+Make sure that device ID is set to 8034 and set the PCIe ID *Base Class* to **Memory Controller** as the *Sub Class* to **Other memory controller**..
 
 ![PCIe ID Settings](img/XDMA_Settings_PCIe_ID.png)
 
 A *PCIe to AXI Translation* offset is useful to make sure the *Size* of your AXI Lite BAR overlaps the address space of all peripheral blocks. This is useful when a soft-core processor has its [peripherals in a sequence at some address range](https://en.wikipedia.org/wiki/Memory-mapped_I/O_and_port-mapped_I/O) like `0x7001000`, `0x7002000`, `0x7003000`, etc. Leave it at `0` unless you have a reason to change it. It is set to a non-zero value in this example for illustrative purposes so that readers are aware of it when communicating with other's projects. The offset should be `0` or [larger than *Size*](https://support.xilinx.com/s/question/0D52E00006hpbPJSAY/pcie-to-axi-translation-setting-for-dma-bypass-interface-not-being-applied?language=en_US): `0x40000000 > 1MB==1048576==0x100000`. This offset becomes the lowest accessible memory address. All `M_AXI_LITE` IP Block addresses must be greater than the offset.
 
-![AXI Lite BAR Setup](img/XDMA_Block_Properties_AXILite_BAR_Setup.png)
+![AXI Lite BAR Setup](img/XDMA_Block_Properties_AXILite_BAR_Setup_2.png)
 
 Each channel has an AXI-Stream circuit: `S_AXIS_C2H_?` or `M_AXIS_H2C_?`. The XDMA Driver will create a `/dev/xdma0_c2h_?` or `/dev/xdma0_h2c_?` file for each channel. 
 
@@ -569,11 +569,15 @@ The *PCIe Block Location* chosen should be the closest PCIE Block adjacent to th
 
 ![FPGA Banks](img/FPGA_Banks.png)
 
-Set the PCIe ID *Base Class* to **Memory Controller** as the *Sub Class* to **Other memory controller**.
+Make sure that device ID is set to 8034 and set the PCIe ID *Base Class* to **Memory Controller** as the *Sub Class* to **Other memory controller**.
 
 ![PCIe ID Settings](img/XDMA_Settings_PCIe_ID.png)
 
-A *PCIe to AXI Translation* offset is useful to make sure the *Size* of your AXI Lite BAR overlaps the address space of all peripheral blocks. This is useful when a soft-core processor has its [peripherals in a sequence at some address range](https://en.wikipedia.org/wiki/Memory-mapped_I/O_and_port-mapped_I/O) like `0x7001000`, `0x7002000`, `0x7003000`, etc. Leave it at `0` unless you have a reason to change it. It is set to a non-zero value in this example for illustrative purposes so that readers are aware of it when communicating with other's projects. The offset should be `0` or [larger than *Size*](https://support.xilinx.com/s/question/0D52E00006hpbPJSAY/pcie-to-axi-translation-setting-for-dma-bypass-interface-not-being-applied?language=en_US): `0x40000000 > 1MB==1048576==0x100000`. This offset becomes the lowest accessible memory address. All `M_AXI_LITE` IP Block addresses must be greater than the offset.
+Choose a size greater than the sum of sizes of address ranges of your blocks.
+
+A *PCIe to AXI Translation* offset is useful to make sure the *Size* of your AXI Lite address space overlaps the address ranges of all peripheral blocks. This is useful when a soft-core processor has its [peripherals in a sequence at some address range](https://en.wikipedia.org/wiki/Memory-mapped_I/O_and_port-mapped_I/O) like `0x7001000`, `0x7002000`, `0x7003000`, etc. Leave it at `0` unless you have a reason to change it. It is set to a non-zero value in this example for illustrative purposes so that readers are aware of it when communicating with other's projects. The offset should be `0` or [larger than *Size*](https://support.xilinx.com/s/question/0D52E00006hpbPJSAY/pcie-to-axi-translation-setting-for-dma-bypass-interface-not-being-applied?language=en_US): `0x40000000 > 1MB==1048576==0x100000`. This offset becomes the lowest accessible memory address. All `M_AXI_LITE` IP Block addresses must be greater than the offset.
+
+The same is applicable to the DMA Bypass interface. The AXI Translation is set to 0 for it.
 
 ![AXI Lite BAR Setup](img/XDMA_Block_Properties_AXILite_BAR_Setup.png)
 
@@ -592,7 +596,7 @@ For this project only one of each interface is required.
 
 ![SmartConnect Block Properties](img/SmartConnect_Block_Properties.png)
 
-Both the **M_AXI** and **M_AXI_LITE** interfaces should have their own SmartConnect block. Connect their *aclk* input to the `xdma_0` block's *axi_aclk* and their *aresetn* input to *axi_aresetn*. Connect the `S00_AXI` port of one block to `M_AXI` of the XDMA Block and similarly for `M_AXI_LITE`.
+All interfaces shall have their own SmartConnect block for the purpose of demonstration. Although they all could share a single SmartConnect, it is a good practice to separate (Full) AXI and AXI-Lite into dedicated networks to save resources. Connect their *aclk* input to the `xdma_0` block's *axi_aclk* and their *aresetn* input to *axi_aresetn*. Connect the `S00_AXI` port of one block to `M_AXI` of the XDMA Block and similarly for `M_AXI_LITE`and `M_AXI_BYPASS`.
 
 ![SmartConnect Blocks for each AXI Interface](img/SmartConnect_Blocks_for_each_M_AXI_Interface.png)
 
@@ -607,7 +611,7 @@ Add a BRAM Controller for each SmartConnect interface and connect their `S_AXI` 
 
 ![BRAM Controller Block for each SmartConnectInterface](img/BRAM_Controller_Blocks_for_each_SmartConnect_Interface.png)
 
-Double-click the `axi_bram_ctrl_0` block connected to the PCIe **M_AXI** interface and choose a Data Width that matches the *AXI Data Width* of the `xdma_0` block which is 64-Bit for this example. The Number of BRAM interfaces is set to 1 to simplify the design.
+Double-click the `axi_bram_ctrl_0` block connected to the PCIe **M_AXI** interface and choose a Data Width that matches the *AXI Data Width* of the `xdma_0` block which is 64-Bit for this example. The Number of BRAM interfaces is set to 1 to simplify the design. The same action should be performed for **M_AXI_BYPASS**.
 
 ![M_AXI BRAM Controller Data Width is 64-Bit](img/AXI_BRAM_Controller_Block_Properties_AXI_64Bit.png)
 
@@ -649,7 +653,7 @@ Open the *Address Editor* tab, right-click and select *Assign All*:
 
 ![Address Editor Assign All](img/Address_Editor_Assign_All.png)
 
-Edit the AXI Block addresses as required. The *Range* is the size that Vivado will implement for each block and this is where you set it. If the value is too large for your target FPGA then Implementation will fail. Larger sizes may have timing issues as more FPGA resources that are further apart are needed. Even though each Network can have overlapping addresses, avoid this as it can lead to confusion.
+Edit the AXI Block addresses as required. The *Range* is the size that Vivado will implement for each block and this is where you set it. Even though each Network can have overlapping addresses, avoid this as it can lead to confusion.
 
 ![AXI Addresses](img/Address_Editor.png)
 
