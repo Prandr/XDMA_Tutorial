@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 	printf("Write returned rc = %ld = number of bytes sent\n", rc);
 
 	// read data from the AXI Stream into buffer 
-	rc = read (xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * sizeof(float)));
+	rc = read(xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * sizeof(float)));
 	printf("Read  returned rc = %ld = number of bytes received\n", rc);
 
 

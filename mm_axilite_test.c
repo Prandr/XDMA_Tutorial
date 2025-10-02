@@ -1,10 +1,9 @@
 /*
 
 Prerequisites:
- - Vivado XDMA Project with BRAM connected to M_AXI_LITE:
-   github.com/mwrnd/notes/tree/main/XDMA_Communication
- - XDMA Drivers from github.com/xilinx/dma_ip_drivers
-   Install Instructions at github.com/mwrnd/innova2_flex_xcku15p_notes
+ - Xilinx XDMA AXI-Stream Project:
+   https://github.com/Prandr/XDMA_Tutorial
+ - XDMA Drivers from https://github.com/Prandr/dma_ip_drivers
 
 
 Compile with:
@@ -41,11 +40,11 @@ int main(int argc, char **argv)
 	uint32_t data_word = 0xAA55A55A;
 	ssize_t rc;
 
-	rc = pwrite(xdma_userfd, &data_word, 4, address);
+	rc = pwrite(xdma_userfd, &data_word, sizeof(data_word), address);
 
 	data_word = 0;
 
-	rc = pread(xdma_userfd, &data_word, 4, address);
+	rc = pread(xdma_userfd, &data_word, sizeof(data_word), address);
 
 	printf("AXILite Address 0x%08lX after offset has data: 0x%08X",
 		address, data_word);

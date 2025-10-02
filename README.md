@@ -55,7 +55,7 @@ ssize_t write(int fd, const void *buf, size_t count);
 ssize_t read(int fd, const void *buf, size_t count);
 ```
 
-Linux kernel truncates the `count` parameter of these funcions to ~2 GB. The driver provides a way to circumvent this limitation by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
+Linux kernel truncates the `count` parameter of these functions to ~2 GB. The driver provides a way to circumvent this limitation by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
 
 ![XDMA Stream Demo Block Diagram](img/XDMA_Stream_Demo_Block_Diagram.png)
 
@@ -82,12 +82,11 @@ for (int i = 0; i < H2C_FLOAT_COUNT; i++) { h2c_data[i]=(3.14*(i+1)); }
 
 
 // write data buffer to the AXI Stream
-// A Stream has no addresses so use 0 explicitly for consistency
 rc = write(xdma_fd_wrte, h2c_data, (H2C_FLOAT_COUNT * sizeof(float)));
 printf("Write returned rc = %ld = number of bytes sent\n", rc);
 
 // read data from the AXI Stream into buffer
-rc = read (xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * sizeof(float)));
+rc = read(xdma_fd_read, c2h_data, (C2H_FLOAT_COUNT * sizeof(float)));
 printf("Read  returned rc = %ld = number of bytes received\n", rc);
 
 
@@ -149,9 +148,9 @@ This can be accomplished in 2 ways:
     ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
     ```
 
-With both ways Linux kernel truncates the `count` parameter of the funcions to ~2 GB. The driver provides a way to circumvent this limitation by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
+With both ways Linux kernel truncates the `count` parameter of the functions to ~2 GB. The driver provides a way to circumvent this limitation by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
 
-The 2 methods are not exactly equivalent. `write` and `read` advance address by `count` after performing successful operation. Thus repeated call would access this address:
+The 2 methods are not exactly equivalent. `write` and `read` advance address by `count` after performing successful operation. Thus repeated call would access that address:
 
 ```C
 #define READ_SIZE 1024
@@ -236,7 +235,7 @@ sudo ./mm_axi_test
 
 ### M_AXI_LITE
 
-The **M_AXI_LITE** interface is useful for single word access to register-like blocks as communication is via single Transaction Layer Packet (TLP) requests.
+The **M_AXI_LITE** interface is an abridged variation of MM-AXI Protocol that fixes transactions to a single 32-bit value. It is useful for single word access to register-like blocks, typically control and status registers, as communication via direct device memory I/O.
 
 ![M_AXI_LITE Network](img/M_AXI_LITE_Interface.png)
 
@@ -248,7 +247,7 @@ The XDMA Block in the example is [set up with a PCIe to AXI Translation offset](
 
 ![M_AXI_LITE BAR Setup](img/XDMA_Block_Properties_AXILite_BAR_Setup.png)
 
-The following is some minimal C code without error checking. Note `count=4` is fixed for `pread`/`pwrite` as each `M_AXI_LITE` TLP transaction consists of a 32-bit=4-byte data word. `/dev/xdma0_user` is opened Read-Write ([`O_RDWR`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)) as it is designed for low throughput control data.
+The following is some minimal C code without error checking. Note that each `M_AXI_LITE` transaction consists of a 32-bit=4-byte data word since it is designed for low throughput control and status data. `/dev/xdma0_user` is opened Read-Write ([`O_RDWR`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)) as it is supports bidirectional access.
 ```C
 // Open M_AXI_LITE Device as Read-Write
 int xdma_userfd = open("/dev/xdma0_user", O_RDWR);
@@ -258,17 +257,19 @@ uint64_t address = 0x40010000 - XDMA_PCIe_to_AXI_Translation_Offset;
 uint32_t data_word = 0xAA55A55A;
 ssize_t rc;
 
-rc = pwrite(xdma_userfd, &data_word, 4, address);
+rc = pwrite(xdma_userfd, &data_word, sizeof(data_word), address);
 
 data_word = 0;
 
-rc = pread(xdma_userfd, &data_word, 4, address);
+rc = pread(xdma_userfd, &data_word, sizeof(data_word), address);
 
 printf("AXILite Address 0x%08lX after offset has data: 0x%08X",
-        address, data_word);
+	address, data_word);
 printf(", rc = %ld\n", rc);
 
+
 close(xdma_userfd);
+exit(EXIT_SUCCESS);
 ```
 
 [`mm_axilite_test.c`](mm_axilite_test.c) contains the above in a full C program.
