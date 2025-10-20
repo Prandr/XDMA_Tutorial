@@ -12,7 +12,8 @@ The tutorial can't replace PG195 linked above. It is rather meant to supplement 
       * [M_AXI](#m_axi)
       * [M_AXI_LITE](#m_axi_lite)
       * [M_AXI_BYPASS](#m_axi_bypass)
-   * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
+   * [`ioctl` operations on DMA devices](#ioctl-operations-on-dma-devices)
+      * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Recreating a Project from a Tcl File](#recreating-a-project-from-a-tcl-file)
@@ -287,7 +288,7 @@ The **M_AXI_BYPASS** interface could be [useful for small transfers that require
 On the other hand, it is faster and more efficient than AXI-Lite as it allows to transmit unlimited amount data in a single call and in 64-bit pieces if executed on a 64-bit host.
 
 The example code is superficially similar to M\_AXI above, but demostrates usage of `lseek` and opens  `/dev/xdma0_bypass` in  Read-Write `O_RDWR` mode as it is supports bidirectional access.
-The PCIe to AXI Translation offset is set to 0, therefore the address directly correspond to the address in the device.
+The PCIe to AXI Translation offset is set to 0, therefore the address directly corresponds to the address in the device.
 ```C
 #define DATA_BYTES	8192
 #define DATA_WORDS	(DATA_BYTES/sizeof(uint32_t))
@@ -342,7 +343,105 @@ sudo ./mm_axi_bypass_test
 
 ![M_AXI_BYPASS Test Program](img/mm_axi_bypass_test_Run.png)
 
-## DMA Transfers with `ioctl`
+## `ioctl` operations on DMA devices
+### DMA Transfers with `ioctl`
+The driver provides an additional method to submit DMA transfer requests that could be used for all transfers, but becomes indispensable for transfers above ~2 GB limit for file operations in Linux kernel.  This is achieved with `ioctl` system call with `XDMA_IOCTL_SUBMIT_TRANSFER` operation code. 
+
+```C
+#include <sys/ioctl.h>
+
+int ioctl(int fd, unsigned long op, ...)
+```
+
+A pointer to `struct xdma_transfer_request` is used to pass the transfer parameters to the driver. It is defined in `xdma_ioctl.h` that is installed to `/usr/local/include` by the `make install` and therefore available system-wide.
+
+```C
+#include <xdma_ioctl.h>
+enum xdma_transfer_mode
+{XDMA_H2C, XDMA_C2H };
+/*Structure for submitting the transfer request
+(XDMA_IOCTL_SUBMIT_TRANSFER ioctl operation) */
+struct xdma_transfer_request {
+/*Pointer to buffer in user space*/
+	const char *buf;
+/*Size of the buffer == Length of the transfer
+After the transfer it holds actual amount of 
+transmitted data*/ 
+	size_t length;
+/*AXI address from which or to which transfer the data.
+Ignored for AXI Stream interface*/
+	off_t axi_address;
+/*Direction of the transfer*/
+	enum xdma_transfer_mode mode;
+};
+```
+The procedure is almost dentical for both AXI-MM and AXI-Stream variants, except for `axi_address` field, that doesn't not need to be filled for the latter. For demonstration the example from "M\_AXI" section is converted to this method.
+
+```C
+#define DATA_BYTES	8192
+#define DATA_WORDS	(DATA_BYTES/sizeof(uint32_t))
+
+uint32_t write_buffer[DATA_WORDS]={};
+uint32_t read_buffer[DATA_WORDS]={};
+uint64_t address = 0xC0000000;
+int xdma_h2cfd = 0;
+int xdma_c2hfd = 0;
+ssize_t rc;
+//fill the transfer request structure for uploading the data
+struct xdma_transfer_request transfer_request=
+{
+	.buf=(char *) write_buffer,//cast is needed
+	.length=DATA_BYTES,
+	.axi_address=address,
+	.mode=XDMA_H2C
+};
+
+// Fill the write_buffer with data
+for (int i = 0; i < DATA_WORDS; i++) { write_buffer[i] = (DATA_WORDS - i); }
+
+printf("Buffer Contents before H2C write: \n");
+printf("[0]=%04d, [4]=%04d, [%ld]=%04d\n",
+	(uint32_t)write_buffer[0], (uint32_t)write_buffer[4],
+	(DATA_WORDS - 3), (uint32_t)write_buffer[(DATA_WORDS - 3)]);
+
+// Open M_AXI H2C Host-to-Card Device as Write-Only
+xdma_h2cfd = open("/dev/xdma0_h2c_0", O_WRONLY);
+
+// Write the full write_buffer to the FPGA design's BRAM
+rc = ioctl(xdma_h2cfd, XDMA_IOCTL_SUBMIT_TRANSFER, &transfer_request);
+printf("ioctl returned %zd, errno %i\n", rc, errno);
+//Reuse the structure for downloading data for simplicity. 
+//Probably better use a separate variable in real life applications
+transfer_request.buf=(char *) read_buffer;//cast is neede
+transfer_request.length=DATA_BYTES;//unchanged, redundant
+transfer_request.axi_address=address;//unchanged, redundant
+transfer_request.mode=XDMA_C2H;
+
+// Open M_AXI C2H Card-to-Host Device as Read-Only
+xdma_c2hfd = open("/dev/xdma0_c2h_0", O_RDONLY);
+
+// Read the full read_buffer from the FPGA design's BRAM
+rc = ioctl(xdma_c2hfd, XDMA_IOCTL_SUBMIT_TRANSFER, &transfer_request);
+
+printf("\nBuffer Contents after C2H read: \n");
+printf("[0]=%04d, [4]=%04d, [%ld]=%04d\n",
+	(uint32_t)read_buffer[0], (uint32_t)read_buffer[4],
+	(DATA_WORDS - 3), (uint32_t)read_buffer[(DATA_WORDS - 3)]);
+
+printf("\nrc = %ld = bytes read from FPGA's BRAM\n", transfer_request.length);
+
+
+close(xdma_h2cfd);
+close(xdma_c2hfd);
+exit(EXIT_SUCCESS);
+```
+
+[`mm_axi_over_ioctl_test.c`](mm_axi_over_ioctl_test.c) contains the above in a full C program.
+
+```
+gcc -Wall mm_axi_over_ioctl_test.c -o mm_axi_over_ioctl_test
+sudo ./mm_axi_over_ioctl_test
+```
 
 ## Creating an AXI4-Stream XDMA Block Diagram Design
 
