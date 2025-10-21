@@ -2,7 +2,7 @@
 
 Tutorial for an [XDMA](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction)-based peripheral FPGA design using [reworked XDMA driver](https://github.com/Prandr/dma_ip_drivers) that was adapted and extended from the [Tutorial for the original driver by mwrnd](https://github.com/mwrnd/notes/tree/main/XDMA_Communication).
 
-The tutorial can't replace PG195 linked above. It is rather meant to supplement it on host programming. Therefore, it is advisable to study PG195 first for better understanding of underlying operation.
+This tutorial can't replace PG195 linked above. It is rather meant to supplement it on host programming. Therefore, it is advisable to study PG195 first for better understanding of underlying operation.
 
 
 # Table of Contents
@@ -24,13 +24,13 @@ The tutorial can't replace PG195 linked above. It is rather meant to supplement 
 
 
 
-## General Information
+## Overview
 
 PCI Express is a [Layered Protocol](https://en.wikipedia.org/wiki/Protocol_stack). With the [XDMA Driver (*dma_ip_drivers*)](https://github.com/xilinx/dma_ip_drivers) running on the host PC and an [XDMA IP Block](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction) in your FPGA project, you operate at the Application layer. You read from and write to what appears as a file but it accesses the AXI Bus in your FPGA project. The XDMA Driver and XDMA IP Block handle the lower layers.
 
 The XDMA driver creates [character device files](https://en.wikipedia.org/wiki/Device_file#Character_devices) for easy access to all enabled interfaces.  By default, the write-only device for DMA transfers to DMA interface is named `/dev/xdma0_h2c_0`,  while the read-only `/dev/xdma0_c2h_0` serves the DMA transfers in the opposite direction. This is the case for both AXI-Stream (**M_AXIS_H2C**/**S_AXIS_C2H**) and full memory mapped AXI (**M_AXI**) varieties. The driver enforces appropriate access restrictions. Moreover, the driver permits only one thread at a time to perform transfers on a DMA device. Use separate DMA channels, if you require simultaneous access.
 
-For single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interface, `/dev/xdma0_user` is Read-Write. **M_AXI_BYPASS** interface `/dev/xdma0_bypass` could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md).
+Intended for single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interface, `/dev/xdma0_user` is Read-Write. **M_AXI_BYPASS** interface `/dev/xdma0_bypass` could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md).
 
 The driver allows to adjust the names of character devices with compile options for better overview and to reflect application. It is highly recommended to run `make help` to learn about these and many other configuration options for the driver.
 
@@ -42,7 +42,7 @@ All interfaces are accessed with `write`, `read`, `lseek`, `pwrite`, `pread` sys
 
 ![XDMA Stream Block](img/XDMA_Stream_xdma_0_Block.png)
 
-See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo, [`xdma_stream.tcl`](xdma_stream.tcl). It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
+See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
 
 Each pair of input (H2C) floating-point values is multiplied to an output (C2H) floating-point value. To account for FIFOs built into the AXI4-Stream blocks, 16 floats (64-bytes) are sent and 8 are received. The data stream sinks into **S_AXIS_C2H_?** and flows from **M_AXIS_H2C_?** interface ports.
 
@@ -125,7 +125,7 @@ sudo ./stream_test
 
 ## Software Access to Memory-Mapped Blocks
 
-See [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design) below for instructions to re create the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
+See [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design) below for instructions to recreate the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
 
 ![XDMA Memory-Mapped Demo Block Diagram](img/XDMA_Demo_Block_Diagram.png)
 
@@ -237,7 +237,7 @@ sudo ./mm_axi_test
 
 ### M_AXI_LITE
 
-The **M_AXI_LITE** interface is an abridged variation of MM-AXI Protocol that fixes transactions to a single 32-bit value. It is useful for single word access to register-like blocks, typically control and status registers, as communication via direct device memory I/O.
+The **M_AXI_LITE** interface is an abridged variation of MM-AXI Protocol that fixes transactions to a single 32-bit value. It is useful for single word access to register-like blocks, typically control and status registers, performed via direct device memory I/O.
 
 ![M_AXI_LITE Network](img/M_AXI_LITE_Interface.png)
 
