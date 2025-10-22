@@ -37,6 +37,8 @@ The driver allows to adjust the names of character devices with compile options 
 
 All interfaces are accessed with `write`, `read`, `lseek`, `pwrite`, `pread` system calls as appropriate. See following sections for specifics for each device.  C Library functions from `stdio.h` like `fread` should be avoided, as they can cause undesireable side effects. Note that the Linux kernel limits file operations to ~2 GB. The driver provides a way to circumvent this limitation for DMA devices by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
 
+XDMA IP Core manages DMA transfers on descriptor level. The practical reprecussion of this is that the transfer progress is reported in terms of the number completed descriptors. The driver tries to make the best of it in the case of a partial transfers (because of a timeout or a caught signal) by returning the amount of data in the completed descriptors, which would be very likely less, than the actual transferred amount. There is unfortunately no way to find out the latter, unless the application has a way to differentiate meaningful data. If not, the data transferred beyond reported amount is effectively lost and the FPGA logic might require a reset to bring it into a known state. Therefore, it is _strongly recommended not to rely on timeouts_ in normal operation and treat them as an error condition.
+
 ## Software Access to AXI Stream Blocks
 
 **AXI4-Stream** is designed for continuous throughput. 
@@ -359,7 +361,7 @@ The driver provides an additional method to submit DMA transfer requests that co
 int ioctl(int fd, unsigned long op, ...)
 ```
 
-A pointer to `struct xdma_transfer_request` is used to pass the transfer parameters to the driver. It is defined in `xdma_ioctl.h` that is installed to `/usr/local/include` by the `make install` and therefore available system-wide.
+A pointer to `struct xdma_transfer_request` is used to pass the transfer parameters to the driver. It is defined in `xdma_ioctl.h` that is installed to `/usr/local/include` by the `make install` and therefore available system-wide. After the operation the `length` field holds the amount of data that is known to have been transferred.
 
 ```C
 #include <xdma_ioctl.h>
