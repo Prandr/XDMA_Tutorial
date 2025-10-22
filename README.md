@@ -14,6 +14,7 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
       * [M_AXI_BYPASS](#m_axi_bypass)
    * [`ioctl` operations on DMA devices](#ioctl-operations-on-dma-devices)
       * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
+      * [Other operations](#other-operations)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Recreating a Project from a Tcl File](#recreating-a-project-from-a-tcl-file)
@@ -38,16 +39,19 @@ All interfaces are accessed with `write`, `read`, `lseek`, `pwrite`, `pread` sys
 
 ## Software Access to AXI Stream Blocks
 
-**AXI4-Stream** is designed for continuous throughput. Multiples of the `tdata` width (64-Bits for this demo) up to the [Stream](https://docs.xilinx.com/r/en-US/pg085-axi4stream-infrastructure/AXI4-Stream-Data-FIFO?tocId=gyNUSa81sSudIrD3MNZ6aw) [FIFO](https://en.wikipedia.org/wiki/FIFO_(computing_and_electronics)) depth need to be read from C2H (Card-to-Host) or written to H2C (Host-to-Card).
+**AXI4-Stream** is designed for continuous throughput. 
+To send data to an M\_AXIS\_H2C\_? port you should use `write` system call to write to the corresponding device file. 
+To retrieve data from an S\_AXIS\_C2H\_? port you should use `read` system call to read from the corresponding device file. 
+
+In some applications FPGA logic expects `tlast` line to signal the end of a H2C transmission. The driver has optional support for this behaviour, which can be enabled by adding the `O_TRUNC` flag to the `open` call.
+
+Multiples of the `tdata` width (64-Bits for this demo) up to the [Stream](https://docs.xilinx.com/r/en-US/pg085-axi4stream-infrastructure/AXI4-Stream-Data-FIFO?tocId=gyNUSa81sSudIrD3MNZ6aw) [FIFO](https://en.wikipedia.org/wiki/FIFO_(computing_and_electronics)) depth need to be read from C2H (Card-to-Host) or written to H2C (Host-to-Card).
 
 ![XDMA Stream Block](img/XDMA_Stream_xdma_0_Block.png)
 
 See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
 
 Each pair of input (H2C) floating-point values is multiplied to an output (C2H) floating-point value. To account for FIFOs built into the AXI4-Stream blocks, 16 floats (64-bytes) are sent and 8 are received. The data stream sinks into **S_AXIS_C2H_?** and flows from **M_AXIS_H2C_?** interface ports.
-
-To send data to an M\_AXIS\_H2C\_? port you should use `write` system call to write to the corresponding device file. 
-To retrieve data from an S\_AXIS\_C2H\_? port you should use `read` system call to read from the corresponding device file. 
 
 
 ```C
@@ -170,6 +174,8 @@ Note that the Linux kernel limits file operations to ~2 GB. The driver provides 
 ### M_AXI
 
 The **M_AXI** interface is for Direct Memory Access (DMA) to AXI blocks.
+
+Adding `O_TRUNC` flag to the `open` call can be used to optionally enable the "fixed address mode", also called "non-incremental mode" by PG195. In this mode all data is written to or read from the specified (start) address. This may be helpful, when communicating with FIFO-like blocks, e. g. writing to certain address places data onto processing queue. The mode can be also modified [with `ioctl`](#other-operations) without reopening the device file.
 
 ![M_AXI Network](img/M_AXI_Interface.png)
 
@@ -442,7 +448,7 @@ exit(EXIT_SUCCESS);
 gcc -Wall mm_axi_over_ioctl_test.c -o mm_axi_over_ioctl_test
 sudo ./mm_axi_over_ioctl_test
 ```
-
+### Other operations
 ## Creating an AXI4-Stream XDMA Block Diagram Design
 
 This procedure will recreate the design in [`xdma_stream.tcl`](xdma_stream.tcl), which can also be `source`'ed in Vivado and [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file) to avoid the following.
