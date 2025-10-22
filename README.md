@@ -5,7 +5,7 @@ Tutorial for an [XDMA](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introducti
 This tutorial can't replace PG195 linked above. It is rather meant to supplement it on host programming. Therefore, it is advisable to study PG195 first for better understanding of underlying operation.
 
 
-# Table of Contents
+## Table of Contents
    
    * [Software Access to AXI Stream Blocks](#software-access-to-axi-stream-blocks)
    * [Software Access to Memory-Mapped Blocks](#software-access-to-memory-mapped-blocks)
@@ -14,6 +14,7 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
       * [M_AXI_BYPASS](#m_axi_bypass)
    * [`ioctl` operations on DMA devices](#ioctl-operations-on-dma-devices)
       * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
+      * [Testing performance](#testing-performance)
       * [Other operations](#other-operations)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
@@ -352,16 +353,17 @@ sudo ./mm_axi_bypass_test
 ![M_AXI_BYPASS Test Program](img/mm_axi_bypass_test_Run.png)
 
 ## `ioctl` operations on DMA devices
-### DMA Transfers with `ioctl`
-The driver provides an additional method to submit DMA transfer requests that could be used for all transfers, but becomes indispensable for transfers above ~2 GB limit for file operations in Linux kernel.  This is achieved with `ioctl` system call with `XDMA_IOCTL_SUBMIT_TRANSFER` operation code. 
+The driver extends functionality of standard file operations with `ioctl` operations.
 
 ```C
 #include <sys/ioctl.h>
 
 int ioctl(int fd, unsigned long op, ...)
 ```
+The operation codes and data structures are defined in `xdma_ioctl.h` that is installed to `/usr/local/include` by the `make install` and therefore visible system-wide. 
 
-A pointer to `struct xdma_transfer_request` is used to pass the transfer parameters to the driver. It is defined in `xdma_ioctl.h` that is installed to `/usr/local/include` by the `make install` and therefore available system-wide. After the operation the `length` field holds the amount of data that is known to have been transferred.
+### DMA Transfers with `ioctl`
+The most important operation `XDMA_IOCTL_SUBMIT_TRANSFER` provides an additional method to submit DMA transfer requests that could be used for all transfers, but becomes indispensable for transfers above ~2 GB limit for file operations in Linux kernel. A pointer to `struct xdma_transfer_request` is used to pass the transfer parameters to the driver. After the operation the `length` field holds the amount of data that is known to have been transferred.
 
 ```C
 #include <xdma_ioctl.h>
@@ -450,6 +452,85 @@ exit(EXIT_SUCCESS);
 gcc -Wall mm_axi_over_ioctl_test.c -o mm_axi_over_ioctl_test
 sudo ./mm_axi_over_ioctl_test
 ```
+### Testing performance
+The driver supports XDMA's intrinsic performance test feature with `XDMA_IOCTL_PERF_TEST` operation, that takes a pointer to `xdma_performance_ioctl` structure.
+
+```C
+struct xdma_performance_ioctl {
+/*Length of the transfer for the performance test.
+Typically up to 64 MB and must be multiple of datapath width.*/
+	uint32_t transfer_size;
+	/*for MM AXI: AXI address to or from which  the transfer
+	willl be directed. Ignored for AXI-Stream interface.
+	Must be capable to produce or sink transfer_size amount of
+	data*/
+	off_t axi_address;
+	/* measurement */
+	uint64_t clock_cycle_count;
+	uint64_t data_cycle_count;
+};
+```
+
+The test can be used to measure raw data rate of the DMA transfers, that is significantly more accurate than common call-to-return method, that includes setup and cleanup stages of a transfer. However, it is still not 100% exact, because it counts in loading of descriptors phase.
+
+The `transfer_size` field allows to set the size of data sample used for the test. The larger the sample, the closer the measurement would be to the exact value. However, the logic on the FPGA must be able to consume (for H2C channel) or produce (for C2H channel) that amount of data.
+
+The result of the measurement is returned in the `data_cycle_count` and `clock_cycle_count` fields. Their ratio gives approximate transfer efficiency. The data rate can be calculated out of them as:
+
+```
+data_cycle_count / clock_cycle_count * AXI clock frequency * datapath width
+```
+
+Following  function showcases example usage:
+
+```C
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <time.h>
+#include <stdbool.h>
+#include <xdma_ioctl.h>
+#include <sys/ioctl.h>
+
+#define AXI_CLOCK_FREQ 125000000
+#define DATAPATH_WIDTH 8
+
+/*oflag: O_RDONLY or O_WRONLY, depending on the direction of the DMA channel.
+size: size of the test sample*/
+void test_xdma_ioctl_perf(const char *device_file_name, int oflag, uint32_t size)
+{
+    int rv;
+    struct xdma_performance_ioctl perf_res={
+	.transfer_size=size};
+    int fd=open(device_file_name, oflag);
+    if(fd< 0)
+    {
+	fprintf(stderr, "Failed to open %s\n", device_file_name);
+	return;
+    }
+    rv=ioctl(fd, XDMA_IOCTL_PERF_TEST, &perf_res);
+    if(rv<0)
+    {
+	fprintf(stderr, "Performance test on %s has failed\n", device_file_name);
+	fprintf(stderr, ": %s (%u)\n", strerror(errno), errno);
+    }
+    else
+    {
+	double ratio=((double) perf_res.data_cycle_count)/((double) perf_res.clock_cycle_count);
+	printf("Perfomance of channel %s: data was transferred on %u cycles out of %u (%f \%), measured data rate: %f B/s \n",
+		device_file_name, perf_res.data_cycle_count, perf_res.clock_cycle_count, ratio*100.0, ratio*AXI_CLOCK_FREQ*DATAPATH_WIDTH);
+    }
+    
+
+    close(fd);
+
+}
+```
+
 ### Other operations
 ## Creating an AXI4-Stream XDMA Block Diagram Design
 
