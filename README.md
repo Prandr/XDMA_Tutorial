@@ -38,7 +38,7 @@ The driver allows to adjust the names of character devices with compile options 
 
 All interfaces are accessed with `write`, `read`, `lseek`, `pwrite`, `pread` system calls as appropriate. See following sections for specifics for each device.  C Library functions from `stdio.h` like `fread` should be avoided, as they can cause undesireable side effects. Note that the Linux kernel limits file operations to ~2 GB. The driver provides a way to circumvent this limitation for DMA devices by allowing to [submit the DMA transfer requests over `ioctl` system call](#dma-transfers-with-ioctl).
 
-XDMA IP Core manages DMA transfers on descriptor level. The practical reprecussion of this is that the transfer progress is reported in terms of the number completed descriptors. The driver tries to make the best of it in the case of a partial transfers (because of a timeout or a caught signal) by returning the amount of data in the completed descriptors, which would be very likely less, than the actual transferred amount. There is unfortunately no way to find out the latter, unless the application has a way to differentiate meaningful data. If not, the data transferred beyond reported amount is effectively lost and the FPGA logic might require a reset to bring it into a known state. Therefore, it is _strongly recommended not to rely on timeouts_ in normal operation and treat them as an error condition.
+XDMA IP Core manages DMA transfers on descriptor level. The practical reprecussion of this is that the transfer progress is reported in terms of the number completed descriptors. The driver tries to make the best of it in the case of a partial transfers (because of a timeout or a caught signal) by returning the amount of data in the completed descriptors, which would be very likely less, than the actual transferred amount. There is unfortunately no way to find out the latter, unless the application has a way to differentiate meaningful data. If not, the data transferred beyond reported amount is effectively lost and the FPGA logic might require a reset to bring it into a known state. Therefore, it is _strongly recommended not to rely on timeouts_ in normal operation and treat them as an error state.
 
 ## Software Access to AXI Stream Blocks
 
@@ -532,6 +532,12 @@ void test_xdma_ioctl_perf(const char *device_file_name, int oflag, uint32_t size
 ```
 
 ### Other operations
+
+   * `XDMA_IOCTL_ADDRMODE_SET` allows to turn on (`true`) or off (`false`) the fixed address mode aka non-incremental mode for MM DMA devices. Requires a *pointer to* `bool`.
+   * `XDMA_IOCTL_ADDRMODE_GET` quires, if the fixed address mode aka non-incremental mode is currently active. Takes a *pointer to* `bool`.
+   * `XDMA_IOCTL_ALIGN_GET` returns value, to which the user data buffer has to be aligned, as an `int`, *a pointer to which* must be passed to `ioctl`.
+
+
 ## Creating an AXI4-Stream XDMA Block Diagram Design
 
 This procedure will recreate the design in [`xdma_stream.tcl`](xdma_stream.tcl), which can also be `source`'ed in Vivado and [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file) to avoid the following.
