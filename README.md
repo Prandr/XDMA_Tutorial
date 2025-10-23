@@ -12,10 +12,10 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
       * [M_AXI](#m_axi)
       * [M_AXI_LITE](#m_axi_lite)
       * [M_AXI_BYPASS](#m_axi_bypass)
-   * [`ioctl` operations on DMA devices](#ioctl-operations-on-dma-devices)
+   * [`ioctl` Operations on DMA Devices](#ioctl-operations-on-dma-devices)
       * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
-      * [Testing performance](#testing-performance)
-      * [Other operations](#other-operations)
+      * [Testing Performance](#testing-performance)
+      * [Other Operations](#other-operations)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Recreating a Project from a Tcl File](#recreating-a-project-from-a-tcl-file)
@@ -352,7 +352,7 @@ sudo ./mm_axi_bypass_test
 
 ![M_AXI_BYPASS Test Program](img/mm_axi_bypass_test_Run.png)
 
-## `ioctl` operations on DMA devices
+## `ioctl` Operations on DMA Devices
 The driver extends functionality of standard file operations with `ioctl` operations.
 
 ```C
@@ -452,7 +452,7 @@ exit(EXIT_SUCCESS);
 gcc -Wall mm_axi_over_ioctl_test.c -o mm_axi_over_ioctl_test
 sudo ./mm_axi_over_ioctl_test
 ```
-### Testing performance
+### Testing Performance
 The driver supports XDMA's intrinsic performance test feature with `XDMA_IOCTL_PERF_TEST` operation, that takes a pointer to `xdma_performance_ioctl` structure.
 
 ```C
@@ -531,7 +531,7 @@ void test_xdma_ioctl_perf(const char *device_file_name, int oflag, uint32_t size
 }
 ```
 
-### Other operations
+### Other Operations
 
    * `XDMA_IOCTL_ADDRMODE_SET` allows to turn on (`true`) or off (`false`) the fixed address mode aka non-incremental mode for MM DMA devices. Requires a *pointer to* `bool`.
    * `XDMA_IOCTL_ADDRMODE_GET` quires, if the fixed address mode aka non-incremental mode is currently active. Takes a *pointer to* `bool`.
