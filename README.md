@@ -18,7 +18,6 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
       * [Other Operations](#other-operations)
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
-   * [Recreating a Project from a Tcl File](#recreating-a-project-from-a-tcl-file)
    * [Porting the Design to Another FPGA](#porting-the-design-to-another-fpga)
    * [Install XDMA Driver from dma_ip_drivers](#install-xdma-driver-from-dma_ip_drivers)
    * [Useful Links](#useful-links)
@@ -52,7 +51,7 @@ Multiples of the `tdata` width (64-Bits for this demo) up to the [Stream](https:
 
 ![XDMA Stream Block](img/XDMA_Stream_xdma_0_Block.png)
 
-See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
+See [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design) below for instructions to recreate the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#porting-the-design-to-another-fpga).
 
 Each pair of input (H2C) floating-point values is multiplied to an output (C2H) floating-point value. To account for FIFOs built into the AXI4-Stream blocks, 16 floats (64-bytes) are sent and 8 are received. The data stream sinks into **S_AXIS_C2H_?** and flows from **M_AXIS_H2C_?** interface ports.
 
@@ -132,7 +131,7 @@ sudo ./stream_test
 
 ## Software Access to Memory-Mapped Blocks
 
-See [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design) below for instructions to recreate the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file).
+See [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design) below for instructions to recreate the simple included demo. It can also be [retargeted to other FPGAs and/or boards](#porting-the-design-to-another-fpga).
 
 ![XDMA Memory-Mapped Demo Block Diagram](img/XDMA_Demo_Block_Diagram.png)
 
@@ -540,7 +539,7 @@ void test_xdma_ioctl_perf(const char *device_file_name, int oflag, uint32_t size
 
 ## Creating an AXI4-Stream XDMA Block Diagram Design
 
-This procedure will recreate the design in [`xdma_stream.tcl`](xdma_stream.tcl), which can also be `source`'ed in Vivado and [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file) to avoid the following.
+This procedure will recreate the design for the AXI-Stream example.
 
 ![Create Project](img/Vivado_Create_Project.png)
 
@@ -803,7 +802,7 @@ Generate a Memory Configuration File and follow your board's instructions for pr
 
 ## Creating a Memory-Mapped XDMA Block Diagram Design
 
-This procedure will recreate the design in [`xdma_mm.tcl`](xdma_mm.tcl), which can also be `source`'ed in Vivado and [retargeted to other FPGAs and/or boards](#recreating-a-project-from-a-tcl-file) to avoid the following.
+This procedure will recreate for the Memory-mapped examples.
 
 Start Vivado and choose *Create Project*:
 
@@ -1012,22 +1011,9 @@ Generate a Memory Configuration File and follow your board's instructions for pr
 ![Generate a Memory Configuration File](img/Generate_Memory_Configuration_File.png)
 
 
-## Recreating a Project from a Tcl File
+## Porting the Design to Another FPGA
 
-Run the [`source`](https://docs.xilinx.com/r/2022.2-English/ug939-vivado-designing-with-ip-tutorial/Source-the-Tcl-Script?tocId=7apMNdBzAEx4udRnUANS9A) command in the Vivado *Tcl Console* to recreate a project. The [`constraints.xdc`](constraints.xdc) file needs to be in the same directory.
-```
-pwd
-cd DOWNLOAD_DIRECTORY
-dir
-source PROJECT_NAME.tcl
-```
-
-![Vivado source Tcl Project](img/Vivado_source_Tcl_Project.png)
-
-
-### Porting the Design to Another FPGA
-
-If your board and target FPGA are different than those in the `.tcl` project file, the design can be re-targeted.
+If your board and target FPGA are different than those in the design creation guides, the design can be re-targeted.
 
 Under *Tools->Settings*, change the **Project Device**.
 
