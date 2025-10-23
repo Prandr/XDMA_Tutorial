@@ -1046,24 +1046,18 @@ Generate the Bitstream:
 
 
 
-## Install XDMA Driver from dma_ip_drivers
+## Install the Reworked XDMA Driver from dma_ip_drivers
 
-Download and extract the November 10, 2023, commit a93d4a4 version of Xilinx's [DMA IP Drivers](https://github.com/Xilinx/dma_ip_drivers/tree/a93d4a4870e41d152b33aebb3f869eefb11aa691).
+Clone the repository from [](https://github.com/Prandr/dma_ip_drivers)
+
 ```Shell
-cd ~
-wget https://codeload.github.com/Xilinx/dma_ip_drivers/zip/a93d4a4870e41d152b33aebb3f869eefb11aa691 -O dma_ip_drivers-a93d4a4.zip
-unzip dma_ip_drivers-a93d4a4.zip
-mv dma_ip_drivers-a93d4a4870e41d152b33aebb3f869eefb11aa691 dma_ip_drivers
+cd #to the folder where you wish to place the driver
+git clone https://github.com/Prandr/dma_ip_drivers.git XDMA_driver
 
-cd dma_ip_drivers/XDMA/linux-kernel/xdma/
-make DEBUG=1
+cd XDMA_driver/XDMA/linux-kernel/xdma/
+make help
+#add desired build options to the make install below
 sudo make install
-
-sudo depmod -a
-sudo ldconfig
-
-cd ~/dma_ip_drivers/XDMA/linux-kernel/tools
-make
 
 sudo reboot
 ```
