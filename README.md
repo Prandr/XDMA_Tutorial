@@ -477,10 +477,10 @@ The `transfer_size` field allows to set the size of data sample used for the tes
 The result of the measurement is returned in the `data_cycle_count` and `clock_cycle_count` fields. Their ratio gives approximate transfer efficiency. The data rate can be calculated out of them as:
 
 ```
-data_cycle_count / clock_cycle_count * AXI clock frequency * datapath width
+data_cycle_count / clock_cycle_count * AXI clock frequency * datapath width in Bytes
 ```
 
-Following  function showcases example usage:
+Following function showcases example usage:
 
 ```C
 #include <fcntl.h>
@@ -496,7 +496,7 @@ Following  function showcases example usage:
 #include <sys/ioctl.h>
 
 #define AXI_CLOCK_FREQ 125000000
-#define DATAPATH_WIDTH 8
+#define DATAPATH_WIDTH (64/8)
 
 /*oflag: O_RDONLY or O_WRONLY, depending on the direction of the DMA channel.
 size: size of the test sample*/
@@ -519,9 +519,9 @@ void test_xdma_ioctl_perf(const char *device_file_name, int oflag, uint32_t size
     }
     else
     {
-	double ratio=((double) perf_res.data_cycle_count)/((double) perf_res.clock_cycle_count);
+	double efficiency=((double) perf_res.data_cycle_count)/((double) perf_res.clock_cycle_count);
 	printf("Perfomance of channel %s: data was transferred on %u cycles out of %u (%f \%), measured data rate: %f B/s \n",
-		device_file_name, perf_res.data_cycle_count, perf_res.clock_cycle_count, ratio*100.0, ratio*AXI_CLOCK_FREQ*DATAPATH_WIDTH);
+		device_file_name, perf_res.data_cycle_count, perf_res.clock_cycle_count, efficiency*100.0, efficiency*AXI_CLOCK_FREQ*DATAPATH_WIDTH);
     }
     
 
