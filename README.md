@@ -135,11 +135,11 @@ See [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapp
 
 ![XDMA Memory-Mapped Demo Block Diagram](img/XDMA_Demo_Block_Diagram.png)
 
-To download data from a memory mapped AXI interface at address `0x12345000` you would read from address `0x12345000` of the `/dev/xdma0_c2h_0` (Card-to-Host) file. To upload data you would write to the appropriate address of the `/dev/xdma0_h2c_0` (Host-to-Card) file.
+To download data from a memory mapped AXI interface at address `0x12345000` you would read from offset `0x12345000` of the `/dev/xdma0_c2h_0` (Card-to-Host) file. To upload data you would write to the appropriate offset of the `/dev/xdma0_h2c_0` (Host-to-Card) file.
 
 This can be accomplished in 2 ways:
 
-1. Set address with [`lseek`](https://man7.org/linux/man-pages/man2/lseek.2.html), then use `read` or `write`. `offset` argument in combination with `SEEK_SET` as `whence` argument directly corresponds to the address. `lseek` comes with additional flexibility with `SEEK_CUR` and `SEEK_END` `whence` options, that allows to set the endpoint address relative respectively to current value or the end of the address space. This could be useful in some cases.
+1. Set offset with [`lseek`](https://man7.org/linux/man-pages/man2/lseek.2.html), then use `read` or `write`. `offset` argument in combination with `SEEK_SET` as `whence` argument directly corresponds to the address. `lseek` comes with additional flexibility with `SEEK_CUR` and `SEEK_END` `whence` options, that allows to set the endpoint address relative respectively to current value or the end of the address space. This could be useful in some cases.
     
     ```C
     #include <unistd.h>
@@ -177,7 +177,7 @@ Note that the Linux kernel limits file operations to ~2 GB. The driver provides 
 
 The **M_AXI** interface is for Direct Memory Access (DMA) to AXI blocks.
 
-Adding `O_TRUNC` flag to the `open` call can be used to optionally enable the "fixed address mode", also called "non-incremental mode" by PG195. In this mode all data is written to or read from the specified (start) address. This may be helpful, when communicating with FIFO-like blocks, e. g. writing to certain address places data onto processing queue. The mode can be also modified [with `ioctl`](#other-operations) without reopening the device file.
+Adding `O_TRUNC` flag to the `open` call can be used to optionally enable the "fixed address mode", also called "non-incremental mode" by PG195. In this mode all data is written to or read from the specified (start) address. This may be helpful, when communicating with FIFO-like blocks, e. g. writing to a certain address places data onto processing queue. The mode can be also modified [with `ioctl`](#other-operations) without reopening the device file.
 
 ![M_AXI Network](img/M_AXI_Interface.png)
 
