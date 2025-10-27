@@ -20,7 +20,7 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Porting the Design to Another FPGA](#porting-the-design-to-another-fpga)
-   * [Install XDMA Driver from dma_ip_drivers](#install-xdma-driver-from-dma_ip_drivers)
+   * [Install the Reworked XDMA Driver from dma_ip_drivers](#install-the-reworked-xdma-driver-from-dma_ip_drivers)
    * [Useful Links](#useful-links)
 
 
