@@ -20,6 +20,7 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
    * [Creating an AXI4-Stream XDMA Block Diagram Design](#creating-an-axi4-stream-xdma-block-diagram-design)
    * [Creating a Memory-Mapped XDMA Block Diagram Design](#creating-a-memory-mapped-xdma-block-diagram-design)
    * [Porting the Design to Another FPGA](#porting-the-design-to-another-fpga)
+   * [Managing Access Permissions to the Device Files with udev Rules](#managing-access-permissions-to-the-device-files-with-udev-rules)
    * [Install the Reworked XDMA Driver from dma_ip_drivers](#install-the-reworked-xdma-driver-from-dma_ip_drivers)
    * [Useful Links](#useful-links)
 
@@ -1051,7 +1052,30 @@ Generate the Bitstream:
 
 ![Generate the Bitstream](img/Generate_Bitstream.png)
 
+## Managing Access Permissions to the Device Files with udev Rules
+By default only root users are allowed to access the device files in `/dev`. This is incovenient and sometimes these files have to be accessed by users without root rights.
 
+This can be solved by creating a suitable ".rules" file and placing it into `/etc/udev/rules.d` directory.
+
+To give unrestricted access to all users it takes very simple form:
+```
+SUBSYSTEM=="xdma", MODE="666"
+```
+You find it in the premade `10-xdma.rules` file.
+
+To give access only to certain users, you need first to create a group and add all those users to it.
+```Shell
+sudo groupadd xdma_users
+sudo usermod -aG xdma_users User1
+#add other users
+```
+The corresponding udev rule:
+```
+KERNEL=="xdma*", NAME="%k", GROUP="xdma_users", MODE="0660"
+
+``` 
+
+If you made use of the `PREFIX` build option, replace `"xdma"` accordingly in the rules. 
 
 
 ## Install the Reworked XDMA Driver from dma_ip_drivers
