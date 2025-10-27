@@ -12,6 +12,7 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
       * [M_AXI](#m_axi)
       * [M_AXI_LITE](#m_axi_lite)
       * [M_AXI_BYPASS](#m_axi_bypass)
+      * [Accessing register space of XDMA IP](#accessing-register-space-of-xdma-ip)
    * [`ioctl` Operations on DMA Devices](#ioctl-operations-on-dma-devices)
       * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
       * [Testing Performance](#testing-performance)
@@ -31,7 +32,7 @@ PCI Express is a [Layered Protocol](https://en.wikipedia.org/wiki/Protocol_stack
 
 The XDMA driver creates [character device files](https://en.wikipedia.org/wiki/Device_file#Character_devices) for easy access to all enabled interfaces.  By default, the write-only device for DMA transfers to DMA interface is named `/dev/xdma0_h2c_0`,  while the read-only `/dev/xdma0_c2h_0` serves the DMA transfers in the opposite direction. This is the case for both AXI-Stream (**M_AXIS_H2C**/**S_AXIS_C2H**) and full memory mapped AXI (**M_AXI**) varieties. The driver enforces appropriate access restrictions. Moreover, the driver permits only one thread at a time to perform transfers on a DMA device. Use separate DMA channels, if you require simultaneous access.
 
-Intended for single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interface, `/dev/xdma0_user` is Read-Write. **M_AXI_BYPASS** interface `/dev/xdma0_bypass` could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md).
+Intended for single word (32-Bit) register-like reads and writes to **M_AXI_LITE** interface, `/dev/xdma0_user` is Read-Write. **M_AXI_BYPASS** interface `/dev/xdma0_bypass` could be [useful for small transfers that require low and stable latency](https://github.com/Prandr/dma_ip_drivers/blob/reworked_xdma_main/XDMA/linux-kernel/docs/bypass_bar.md). `/dev/xdma0_control` provides direct access to the register space of XDMA IP.
 
 The driver allows to adjust the names of character devices with compile options for better overview and to reflect application. It is highly recommended to run `make help` to learn about these and many other configuration options for the driver.
 
@@ -350,6 +351,13 @@ sudo ./mm_axi_bypass_test
 ```
 
 ![M_AXI_BYPASS Test Program](img/mm_axi_bypass_test_Run.png)
+
+### Accessing register space of XDMA IP
+The XDMA register space can be directly accessed over `/dev/xdma0_control` device file analogously to [M_AXI_LITE](#m_axi_lite).
+
+This could be used for example to find out the configuration of the XDMA IP if you had a poorly documented external design that is present only as a binary ".bit" file. In  order to figure out, what AXI variety it utilises, Memory-Mapped or Stream you could read from channel register 0x00 and check bit 15 (see PG195).
+
+Writing to the XDMA register space is strongly discouraged unless you 200% sure you know what you are doing, as it likely to interfere and even to completely break the normal operation.
 
 ## `ioctl` Operations on DMA Devices
 The driver extends functionality of standard file operations with `ioctl` operations.
