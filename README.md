@@ -12,7 +12,7 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
       * [M_AXI](#m_axi)
       * [M_AXI_LITE](#m_axi_lite)
       * [M_AXI_BYPASS](#m_axi_bypass)
-      * [Accessing register space of XDMA IP](#accessing-register-space-of-xdma-ip)
+      * [Accessing Register Space of XDMA IP](#accessing-register-space-of-xdma-ip)
    * [`ioctl` Operations on DMA Devices](#ioctl-operations-on-dma-devices)
       * [DMA Transfers with `ioctl`](#dma-transfers-with-ioctl)
       * [Testing Performance](#testing-performance)
@@ -353,7 +353,7 @@ sudo ./mm_axi_bypass_test
 
 ![M_AXI_BYPASS Test Program](img/mm_axi_bypass_test_Run.png)
 
-### Accessing register space of XDMA IP
+### Accessing Register Space of XDMA IP
 The XDMA register space can be directly accessed over `/dev/xdma0_control` device file analogously to [M_AXI_LITE](#m_axi_lite).
 
 This could be used for example to find out the configuration of the XDMA IP if you had a poorly documented external design that is present only as a binary ".bit" file. In  order to figure out, what AXI variety it utilises, Memory-Mapped or Stream you could read from channel register 0x00 and check bit 15 (see PG195).
