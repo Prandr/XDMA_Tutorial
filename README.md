@@ -461,29 +461,20 @@ gcc -Wall mm_axi_over_ioctl_test.c -o mm_axi_over_ioctl_test
 sudo ./mm_axi_over_ioctl_test
 ```
 ### Testing Performance
-The driver supports XDMA's intrinsic performance test feature with `XDMA_IOCTL_PERF_TEST` operation, that takes a pointer to `xdma_performance_ioctl` structure.
+The driver supports XDMA's internal performance test feature, which can be enabled with `XDMA_IOCTL_PERF_TEST` operation, that takes a pointer to a `bool` set to `true`. You could then conduct measurements while performing your normal DMA transfers. This test would measure raw data rate, which is significantly more accurate than common call-to-return method, that includes setup and cleanup stages of a transfer. However, it is still not 100% exact, because it counts in cycles used by loading of descriptors. The larger the transfer size, the closer the measurement would be to the exact value.
+
+The measurement result is retrieved by passing a pointer to an instance of `struct xdma_performance_ioctl` to `XDMA_IOCTL_PERF_RESULT` operation
 
 ```C
 struct xdma_performance_ioctl {
-/*Length of the transfer for the performance test.
-Typically up to 64 MB and must be multiple of datapath width.*/
-	uint32_t transfer_size;
-	/*for MM AXI: AXI address to or from which  the transfer
-	willl be directed. Ignored for AXI-Stream interface.
-	Must be capable to produce or sink transfer_size amount of
-	data*/
-	off_t axi_address;
-	/* measurement */
 	uint64_t clock_cycle_count;
 	uint64_t data_cycle_count;
+	bool clock_count_overflow;
+	bool data_count_overflow;
 };
 ```
 
-The test can be used to measure raw data rate of the DMA transfers, that is significantly more accurate than common call-to-return method, that includes setup and cleanup stages of a transfer. However, it is still not 100% exact, because it counts in loading of descriptors phase.
-
-The `transfer_size` field allows to set the size of data sample used for the test. The larger the sample, the closer the measurement would be to the exact value. However, the logic on the FPGA must be able to consume (for H2C channel) or produce (for C2H channel) that amount of data.
-
-The result of the measurement is returned in the `data_cycle_count` and `clock_cycle_count` fields. Their ratio gives approximate transfer efficiency. The data rate can be calculated out of them as:
+The ratio of the `data_cycle_count` and `clock_cycle_count` fields gives approximate transfer efficiency. The data rate can be calculated out of them as:
 
 ```
 data_cycle_count / clock_cycle_count * AXI clock frequency * datapath width in Bytes
@@ -492,52 +483,42 @@ data_cycle_count / clock_cycle_count * AXI clock frequency * datapath width in B
 Following function showcases example usage:
 
 ```C
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <time.h>
-#include <stdbool.h>
+
 #include <xdma_ioctl.h>
 #include <sys/ioctl.h>
 
-#define AXI_CLOCK_FREQ 125000000
+/* set according to your XDMA configuration*/
+#define AXI_CLOCK_FREQ 125000000 
 #define DATAPATH_WIDTH (64/8)
 
-/*oflag: O_RDONLY or O_WRONLY, depending on the direction of the DMA channel.
-size: size of the test sample*/
-void test_xdma_ioctl_perf(const char *device_file_name, int oflag, uint32_t size)
+void showPerfRes(int fd, const char *channel_name)
 {
-    int rv;
-    struct xdma_performance_ioctl perf_res={
-	.transfer_size=size};
-    int fd=open(device_file_name, oflag);
-    if(fd< 0)
+    struct xdma_performance_ioctl perf_res={};
+    if(ioctl(fd, XDMA_IOCTL_PERF_RESULT, &perf_res)<0)
     {
-	fprintf(stderr, "Failed to open %s\n", device_file_name);
+	fprintf(stderr, "Failed to retrieve performance mesurement result" );
 	return;
     }
-    rv=ioctl(fd, XDMA_IOCTL_PERF_TEST, &perf_res);
-    if(rv<0)
+    /*Although the possibility for overflow is very low, especially for data count,
+    since clock count would overflow far in advance of it,
+     it is still best to check to be safe.*/
+    if (perf_res.clock_count_overflow || perf_res.data_count_overflow)
     {
-	fprintf(stderr, "Performance test on %s has failed\n", device_file_name);
-	fprintf(stderr, ": %s (%u)\n", strerror(errno), errno);
+	fprintf(stderr,"Performance counters overflow\n");
+	return;
     }
-    else
-    {
 	double efficiency=((double) perf_res.data_cycle_count)/((double) perf_res.clock_cycle_count);
 	printf("Perfomance of channel %s: data was transferred on %u cycles out of %u (%f \%), measured data rate: %f B/s \n",
-		device_file_name, perf_res.data_cycle_count, perf_res.clock_cycle_count, efficiency*100.0, efficiency*AXI_CLOCK_FREQ*DATAPATH_WIDTH);
+		channel_name, perf_res.data_cycle_count, perf_res.clock_cycle_count, efficiency*100.0, efficiency*AXI_CLOCK_FREQ*DATAPATH_WIDTH);
     }
     
 
-    close(fd);
 
 }
 ```
+
+The measurement doesn't interfere with transfers. There is no harm to leave it enabled besides slightly increased power consuption. If desired, it can be disabled by passing a pointer to a `bool` set to `false` to the `XDMA_IOCTL_PERF_TEST` operation.
+
 
 ### Other Operations
 
