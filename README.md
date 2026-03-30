@@ -247,7 +247,9 @@ sudo ./mm_axi_test
 
 ### M_AXI_LITE
 
-The **M_AXI_LITE** interface is an abridged variation of MM-AXI Protocol that fixes transactions to a single 32-bit value. It is useful for single word access to register-like blocks, typically control and status registers, performed via direct device memory I/O.
+The **M_AXI_LITE** interface is an abridged variation of MM-AXI Protocol that fixes transactions to a single value, typically 32-bit wide. It is useful for single word access to register-like blocks, typically control and status registers, performed via direct device memory I/O.
+
+The reworked driver, however, supports partial/narrow access of 8-bit and 16-bit wide as well. This requires that AXI-Slave peripheral can handle partial transfers according to the standard, i. e. make use of `wstrb` and select appropriate data bus range for reading and writing.  The AXI address must be aligned to the access width.
 
 ![M_AXI_LITE Network](img/M_AXI_LITE_Interface.png)
 
@@ -255,18 +257,19 @@ The [BRAM Controller Block](https://docs.xilinx.com/v/u/en-US/pg078-axi-bram-ctr
 
 ![M_AXI_LITE Addresses](img/Address_Editor_M_AXI_LITE.png)
 
-The XDMA Block in the example is [set up with a PCIe to AXI Translation offset](#add-xdma-block) of `0x40000000` which must be subtracted from the intended AXI address. It is safest to leave the offset at `0` in your designs but useful to be aware of if you are working with other's projects.
+The XDMA Block in the example is [set up with a PCIe to AXI Translation offset](#add-xdma-block) of `0x40000000` which must be subtracted from the intended AXI address. It is safest to leave the offset at `0` in your designs but useful to be aware of it, if you are working with other's projects.
 
 ![M_AXI_LITE BAR Setup](img/XDMA_Block_Properties_AXILite_BAR_Setup.png)
 
-The following is some minimal C code without error checking. Note that each `M_AXI_LITE` transaction consists of a 32-bit=4-byte data word since it is designed for low throughput control and status data. `/dev/xdma0_user` is opened Read-Write ([`O_RDWR`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)) as it is supports bidirectional access.
+The following is some minimal C code without error checking. Note that each `M_AXI_LITE` transaction consists of a single 32-bit=4-byte, 16-bit=2-byte or 8-bit=1-byte data word since it is designed for low throughput control and status data. `/dev/xdma0_user` is opened Read-Write ([`O_RDWR`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)) as it is supports bidirectional access.
 ```C
-// Open M_AXI_LITE Device as Read-Write
-int xdma_userfd = open("/dev/xdma0_user", O_RDWR);
-
 #define XDMA_PCIe_to_AXI_Translation_Offset 0x40000000
+// Open M_AXI_LITE Device as Read-Write
+int xdma_userfd =  open("/dev/xdma0_user", O_RDWR);
+
 uint64_t address = 0x40010000 - XDMA_PCIe_to_AXI_Translation_Offset;
 uint32_t data_word = 0xAA55A55A;
+uint16_t data16=0xCCBB;
 ssize_t rc;
 
 rc = pwrite(xdma_userfd, &data_word, sizeof(data_word), address);
@@ -278,6 +281,17 @@ rc = pread(xdma_userfd, &data_word, sizeof(data_word), address);
 printf("AXILite Address 0x%08lX after offset has data: 0x%08X",
 	address, data_word);
 printf(", rc = %ld\n", rc);
+//address must be aligned to 2
+address = 0x4001000A;
+//AXI slave must be able to support narrow access in order this code to work correctly
+rc = pwrite(xdma_userfd, &data16, sizeof(data16), address);
+
+data16 = 0;
+
+rc = pread(xdma_userfd, &data16, sizeof(data16), address);
+
+printf("AXILite Address 0x%08lX after offset has data: 0x%04X",
+	address, data_word);
 
 
 close(xdma_userfd);

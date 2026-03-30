@@ -33,11 +33,11 @@ Run with:
 int main(int argc, char **argv)
 {
 	// Open M_AXI_LITE Device as Read-Write
-	int xdma_userfd = 0;
-	xdma_userfd = open("/dev/xdma0_user", O_RDWR);
+	int xdma_userfd =  open("/dev/xdma0_user", O_RDWR);
 
 	uint64_t address = 0x40010000 - XDMA_PCIe_to_AXI_Translation_Offset;
 	uint32_t data_word = 0xAA55A55A;
+	uint16_t data16=0xCCBB;
 	ssize_t rc;
 
 	rc = pwrite(xdma_userfd, &data_word, sizeof(data_word), address);
@@ -49,6 +49,17 @@ int main(int argc, char **argv)
 	printf("AXILite Address 0x%08lX after offset has data: 0x%08X",
 		address, data_word);
 	printf(", rc = %ld\n", rc);
+	//address must be aligned to 2
+	address = 0x4001000A;
+	//AXI slave must be able to support narrow access in order this code to work correctly
+	rc = pwrite(xdma_userfd, &data16, sizeof(data16), address);
+
+	data16 = 0;
+
+	rc = pread(xdma_userfd, &data16, sizeof(data16), address);
+
+	printf("AXILite Address 0x%08lX after offset has data: 0x%04X",
+		address, data_word);
 
 
 	close(xdma_userfd);
