@@ -29,7 +29,7 @@ This tutorial can't replace PG195 linked above. It is rather meant to supplement
 
 ## Overview
 
-PCI Express is a [Layered Protocol](https://en.wikipedia.org/wiki/Protocol_stack). With the [XDMA Driver (*dma_ip_drivers*)](https://github.com/xilinx/dma_ip_drivers) running on the host PC and an [XDMA IP Block](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction) in your FPGA project, you operate at the Application layer. You read from and write to what appears as a file but it accesses the AXI Bus in your FPGA project. The XDMA Driver and XDMA IP Block handle the lower layers.
+PCI Express is a [Layered Protocol](https://en.wikipedia.org/wiki/Protocol_stack). With the [XDMA Driver (*dma_ip_drivers*)](https://github.com/Prandr/dma_ip_drivers) running on the host PC and an [XDMA IP Block](https://docs.xilinx.com/r/en-US/pg195-pcie-dma/Introduction) in your FPGA project, you operate at the Application layer. You read from and write to what appears as a file but it accesses the AXI Bus in your FPGA project. The XDMA Driver and XDMA IP Block handle the lower layers.
 
 The XDMA driver creates [character device files](https://en.wikipedia.org/wiki/Device_file#Character_devices) for easy access to all enabled interfaces.  By default, the write-only device for DMA transfers to DMA interface is named `/dev/xdma0_h2c_0`,  while the read-only `/dev/xdma0_c2h_0` serves the DMA transfers in the opposite direction. This is the case for both AXI-Stream (**M_AXIS_H2C**/**S_AXIS_C2H**) and full memory mapped AXI (**M_AXI**) varieties. The driver enforces appropriate access restrictions. Moreover, the driver permits only one thread at a time to perform transfers on a DMA device. Use separate DMA channels, if you require simultaneous access.
 
