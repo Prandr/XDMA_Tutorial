@@ -28,6 +28,7 @@ Run with:
 // With a PCIe x1 Design, AXI Width = 64-Bit=8-Byte
 // Both H2C (Host-to-Card) and C2H (Card-to-Host) have FIFO space for 
 // for two transfers each. Data flows from H2C to C2H.
+#define DATAPATH_WIDTH 8
 #define DATA_SIZE 64
 #define H2C_FLOAT_COUNT (DATA_SIZE / 4)
 #define C2H_FLOAT_COUNT (H2C_FLOAT_COUNT / 2)
@@ -38,8 +39,10 @@ int main(int argc, char **argv)
 {
 	int xdma_fd_read;
 	int xdma_fd_wrte;
-	float h2c_data[H2C_FLOAT_COUNT];
-	float c2h_data[C2H_FLOAT_COUNT];
+	/*note the attribute. Since datapth width is 64 bit, 
+	buffers must be aligned to 8 byte*/
+	float h2c_data[H2C_FLOAT_COUNT] __attribute__((aligned(DATAPATH_WIDTH)));
+	float c2h_data[C2H_FLOAT_COUNT] __attribute__((aligned(DATAPATH_WIDTH)));
 	ssize_t rc = 0;
 
 

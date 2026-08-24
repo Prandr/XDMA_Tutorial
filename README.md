@@ -69,16 +69,18 @@ Linux kernel truncates the `count` parameter of these functions to ~2 GB. The dr
 
 ![XDMA Stream Demo Block Diagram](img/XDMA_Stream_Demo_Block_Diagram.png)
 
-
-
+Note that data buffers must be aligned to datapath width. For static and automatic variables this can be achieved by putting `__attribute__ ((aligned (datapath_width)))` on the variable. Dynamic buffers must be allocated with `posix_memalign` function. However, since plain `malloc` [already aligns memory to at least 16 bytes](https://sourceware.org/glibc/manual/2.39/html_mono/libc.html#Aligned-Memory-Blocks) on 64-Bit Linux, this is only important for datapath widths above 128 bits/16 bytes. You can quiery required alignment with [`XDMA_IOCTL_ALIGN_GET` ioctl operation](#other-operations).
 
 ```C
+#define DATAPATH_WIDTH 8
 #define DATA_SIZE 64
 #define H2C_FLOAT_COUNT (DATA_SIZE / 4)
 #define C2H_FLOAT_COUNT (H2C_FLOAT_COUNT / 2)
 
-float h2c_data[H2C_FLOAT_COUNT];
-float c2h_data[C2H_FLOAT_COUNT];
+/*note the attribute. Since datapth width is 64 bit, 
+buffers must be aligned to 8 byte*/
+float h2c_data[H2C_FLOAT_COUNT] __attribute__((aligned(DATAPATH_WIDTH)));
+float c2h_data[C2H_FLOAT_COUNT] __attribute__((aligned(DATAPATH_WIDTH)));
 ssize_t rc = 0;
 
 int xdma_fd_wrte = open("/dev/xdma0_h2c_0", O_WRONLY);
@@ -187,17 +189,22 @@ The [BRAM Controller Block](https://docs.xilinx.com/v/u/en-US/pg078-axi-bram-ctr
 
 ![M_AXI Addresses](img/Address_Editor_M_AXI.png)
 
-The following is some minimal C code without error checking. Observe the `buffer` is defined as an array of [32-Bit unsigned integers (`uint32_t`)](https://manpages.ubuntu.com/manpages/trusty/en/man7/stdint.h.7posix.html) and is used as such but `pread`/`pwrite` operate on bytes, hence the `#define`s for `DATA_BYTES` and `DATA_WORDS`. `/dev/xdma0_h2c_0` (Host-to-Card) is opened as Write-Only ([`O_WRONLY`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)). `/dev/xdma0_c2h_0` (Card-to-Host) is opened as Read-Only ([`O_RDONLY`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)).
+The following is some minimal C code without error checking. Observe the `buffer` is defined as an array of [32-Bit unsigned integers (`uint32_t`)](https://manpages.ubuntu.com/manpages/trusty/en/man7/stdint.h.7posix.html) and is used as such but `pread`/`pwrite` operate on bytes, hence the `#define`s for `DATA_BYTES` and `DATA_WORDS`. `/dev/xdma0_h2c_0` (Host-to-Card) is opened as Write-Only ([`O_WRONLY`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)). `/dev/xdma0_c2h_0` (Card-to-Host) is opened as Read-Only ([`O_RDONLY`](https://manpages.ubuntu.com/manpages/trusty/en/man2/open.2.html)). Moreover, data buffers must be aligned to datapath width. For static and automatic variables this can be achieved by putting `__attribute__ ((aligned (datapath_width)))` on the variable. Dynamic buffers must be allocated with `posix_memalign` function. However, since plain `malloc` [already aligns memory to at least 16 bytes](https://sourceware.org/glibc/manual/2.39/html_mono/libc.html#Aligned-Memory-Blocks) on 64-Bit Linux, this is only important for datapath widths above 128 bits/16 bytes. You can quiery required alignment with [`XDMA_IOCTL_ALIGN_GET` ioctl operation](#other-operations).
 ```C
+#define DATAPATH_WIDTH 8
 #define DATA_BYTES    8192
 #define DATA_WORDS    (DATA_BYTES/sizeof(uint32_t))
 
-uint32_t write_buffer[DATA_WORDS]={};
-uint32_t read_buffer[DATA_WORDS]={};
+uuint32_t write_buffer[DATA_WORDS] __attribute__((aligned(DATAPATH_WIDTH)))={};
+uint32_t *read_buffer; //for dynamic allocation to demonstrate posix_memalign
 uint64_t address = 0xC0000000;
 int xdma_h2cfd = 0;
 int xdma_c2hfd = 0;
-ssize_t rc;
+/*allocate memory aligned to datapath width of 8 bytes.
+For this design not really necessary, since malloc would align to 16 bytes anyway*/
+ssize_t rc=posix_memalign((void**) &read_buffer, DATAPATH_WIDTH, DATA_BYTES);
+if(rc<0)
+	exit(EXIT_FAILURE);
 
 // Fill the write_buffer with data
 for (int i = 0; i < DATA_WORDS; i++) { write_buffer[i] = (DATA_WORDS - i); }
@@ -230,6 +237,7 @@ printf("\nrc = %ld = bytes read from FPGA's BRAM\n", rc);
 
 close(xdma_h2cfd);
 close(xdma_c2hfd);
+free(read_buffer);
 exit(EXIT_SUCCESS);
 ```
 

@@ -31,7 +31,8 @@ Run with:
 // Using 8 kbyte == 8192 byte array. Size was defined in the
 // Vivado FPGA Project Block Diagram Address Editor as the Data Range for BRAM
 // Each word is 32-Bits so there are 1/4th as many data words.
-// On Linux, read/write can transfer at most 0x7FFFF000 (2,147,479,552) bytes
+// On Linux, read/write can transfer at most 0x7FFFF000 (2,147,479,552) bytes,
+#define DATAPATH_WIDTH 8
 #define DATA_BYTES	8192
 #define DATA_WORDS	(DATA_BYTES/sizeof(uint32_t))
 
@@ -40,12 +41,16 @@ Run with:
 
 int main(int argc, char **argv)
 {
-	uint32_t write_buffer[DATA_WORDS]={};
-	uint32_t read_buffer[DATA_WORDS]={};
+	uint32_t write_buffer[DATA_WORDS] __attribute__((aligned(DATAPATH_WIDTH)))={};
+	uint32_t *read_buffer; //for dynamic allocation to demonstrate posix_memalign
 	uint64_t address = 0xC0000000;
 	int xdma_h2cfd = 0;
 	int xdma_c2hfd = 0;
-	ssize_t rc;
+	/*allocate memory aligned to datapath width of 8 bytes.
+	For this design not really necessary, since malloc would align to 16 bytes anyway*/
+	ssize_t rc=posix_memalign((void**) &read_buffer, DATAPATH_WIDTH, DATA_BYTES);
+	if(rc<0)
+		exit(EXIT_FAILURE);
 
 	// Fill the write_buffer with data
 	for (int i = 0; i < DATA_WORDS; i++) { write_buffer[i] = (DATA_WORDS - i); }
@@ -78,6 +83,7 @@ int main(int argc, char **argv)
 
 	close(xdma_h2cfd);
 	close(xdma_c2hfd);
+	free(read_buffer);
 	exit(EXIT_SUCCESS);
 }
 
